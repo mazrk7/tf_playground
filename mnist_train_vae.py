@@ -53,21 +53,35 @@ def network_architecture():
 
     return network_architecture
   
-if __name__ == '__main__':
+def main(name, seed):
+    model_path = 'models/' + name
+    
     # Define and instantiate VAE model
     vae = VAE(network_architecture=network_architecture()) 
-    saver = tf.train.Saver()
     
     with tf.Session() as sess:
+        tf.set_random_seed(seed)
+            
         # Initialise tf variables
         init = tf.global_variables_initializer()
     
         # Launch session
         sess.run(init)
         
-        model_path = 'models/digit_model_all'
         vae_trained = train_model(vae, sess, n_epochs=FLAGS.n_epochs)
   
         # Create a saver object that will store all the parameter variables
+        saver = tf.train.Saver()
         saver.save(sess, model_path)
         print("Model saved as: %s" % model_path)
+        
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--name', type=str, default='digit_model_all', help='Name of model to train')
+    parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
+    
+    args = parser.parse_args()
+    arguments = args.__dict__
+    
+    main(**arguments)   

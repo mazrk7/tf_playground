@@ -35,15 +35,18 @@ def segment_dataset(class_index):
     
     return np.concatenate((class_images, discr_images), axis=0), np.concatenate((class_labels, discr_labels), axis=0)
 
-def next_batch(split_images, split_labels, batch_size, epoch_index, index_in_epoch, num_samples):
+# Shuffle for the first epoch
+def first_epoch(split_images, split_labels, num_samples):
+    perm0 = np.arange(num_samples)
+    np.random.shuffle(perm0)
+    split_images = split_images[perm0]
+    split_labels = split_labels[perm0]
+    
+    return split_images, split_labels
+        
+def next_batch(split_images, split_labels, batch_size, index_in_epoch, num_samples):
     """Return the next `batch_size` examples from the MNIST data set."""
     start = index_in_epoch
-    # Shuffle for the first epoch
-    if epoch_index == 0 and start == 0:
-        perm0 = np.arange(num_samples)
-        np.random.shuffle(perm0)
-        split_images = split_images[perm0]
-        split_labels = split_labels[perm0]
     
     # Go to the next epoch
     if start + batch_size > num_samples:
@@ -65,31 +68,42 @@ def next_batch(split_images, split_labels, batch_size, epoch_index, index_in_epo
         images_new_part = split_images[start:end]
         labels_new_part = split_labels[start:end]
       
-        return numpy.concatenate((images_rest_part, images_new_part), axis=0) , numpy.concatenate((labels_rest_part, labels_new_part), axis=0)
+        return np.concatenate((images_rest_part, images_new_part), axis=0) , np.concatenate((labels_rest_part, labels_new_part), axis=0), index_in_epoch
     else:
         index_in_epoch += batch_size
         end = index_in_epoch
         
-        return split_images[start:end], split_labels[start:end]
+        return split_images[start:end], split_labels[start:end], index_in_epoch
         
 # Train the VAE using mini-batches
 def train_model(model, sess, class_index, n_epochs=100, display_step=5):
     split_images, split_labels = segment_dataset(class_index)
     num_samples = len(split_images)
+    index_in_epoch = 0
     
     # Training cycle
     for epoch in range(n_epochs):
         avg_cost = 0.
-        index_in_epoch = 0
         total_batch = int(num_samples / model.bs)
-    
+        
+        split_images, split_labels = first_epoch(split_images, split_labels, num_samples)
+        
         # Loop over all batches
         for i in range(total_batch):
-            batch_xs, _ = next_batch(split_images, split_labels, model.bs, epoch, index_in_epoch, num_samples)
+            batch_xs, batch_ys, index_in_epoch = next_batch(split_images, split_labels, model.bs, index_in_epoch, num_samples)
+            
+            # Converts one hot representation to dense array of labels
+            labels = np.where(np.equal(batch_ys, 1.0))[1]
 
+            # Truth values for discrimination in training
+            discr = np.equal(class_index, labels)
+            
             # Fit training using batch data
-            cost = model.partial_fit(sess, batch_xs)
-      
+            cost = model.partial_fit(sess, batch_xs, discr)
+            vec_cost = model.get_vae_cost(sess, batch_xs, discr)
+            
+            print(vec_cost)
+            
             # Compute average loss
             avg_cost += (cost / num_samples) * model.bs
 
@@ -109,22 +123,26 @@ def network_architecture():
 
     return network_architecture
   
-def main(name, index):
+def main(name, index, seed):
+    model_path = 'models/' + name + '_' + str(index)
+    
     # Define and instantiate VAE model
     vae = VAE(network_architecture=network_architecture())
-    saver = tf.train.Saver()
     
     with tf.Session() as sess:
+        np.random.seed(seed)
+        tf.set_random_seed(seed)
+        
         # Initialise tf variables
         init = tf.global_variables_initializer()
-         
+        
         # Launch session
         sess.run(init)
         
-        model_path = 'models/' + name + '_' + str(index)
         vae_trained = train_model(vae, sess, index, n_epochs=FLAGS.n_epochs)
   
         # Create a saver object that will store all the parameter variables
+        saver = tf.train.Saver()
         saver.save(sess, model_path)
         print("Model saved as: %s" % model_path)
     
@@ -133,6 +151,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--name', type=str, default='digit_model', help='Name of model to train')
     parser.add_argument('--index', type=int, default='0', help='Index of model class to learn over')
+    parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
     
     args = parser.parse_args()
     arguments = args.__dict__

@@ -76,6 +76,8 @@ def plot_reconstructions(sess, model):
       
 def main(name, seed): 
     model_path = 'models/' + name
+    
+    # Define and instantiate VAE model
     vae = VAE(network_architecture=network_architecture())
 	
     with tf.Session() as sess:

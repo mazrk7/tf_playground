@@ -9,8 +9,8 @@ flags = tf.flags
 
 flags.DEFINE_integer("bs", 128, "batch size")
 flags.DEFINE_integer("n_epochs", 50, "number of training epochs")
-flags.DEFINE_float("lr", 0.001, "learning rate")
-flags.DEFINE_integer("latent_dim", 2, "latent dimensionality")
+flags.DEFINE_float("lr", 1e-4, "learning rate")
+flags.DEFINE_integer("latent_dim", 20, "latent dimensionality")
 
 FLAGS = flags.FLAGS
 
@@ -28,7 +28,9 @@ class VAE(object):
     
         # Graph input
         self.__x = tf.placeholder(tf.float32, [None, IMAGE_PIXELS])
-    
+        # Boolean to signify whether input should be discriminated against
+        self.__discr = tf.placeholder(tf.bool, [None])
+        
         # Create VAE network
         self.__create_autoencoder()
     
@@ -50,17 +52,17 @@ class VAE(object):
         self.__z = tf.add(self.__z_mean, tf.multiply(tf.sqrt(tf.exp(self.__z_log_sigma_sq)), eps))
 
         # Use generator to determine mean of Bernoulli distribution of reconstructed input
-        self.__x_reconstr_mean = self.__decoder(network_weights['W_d'], network_weights['B_d'])
+        self.__x_reconstr_logits, self.__x_reconstr_mean = self.__decoder(network_weights['W_d'], network_weights['B_d'])
         
     def __init_weights(self, n_input, n_hidden_1, n_hidden_2, n_z):
         all_weights = dict()
-        initializer = tf.contrib.layers.xavier_initializer()
+        initialiser = tf.contrib.layers.xavier_initializer(uniform=False)
         
         all_weights['W_e'] = {
-            'h1': tf.Variable(initializer(shape=[n_input, n_hidden_1])),
-            'h2': tf.Variable(initializer(shape=[n_hidden_1, n_hidden_2])),
-            'out_mean': tf.Variable(initializer(shape=[n_hidden_2, n_z])),
-            'out_log_sigma': tf.Variable(initializer(shape=[n_hidden_2, n_z]))}
+            'h1': tf.Variable(initialiser(shape=[n_input, n_hidden_1])),
+            'h2': tf.Variable(initialiser(shape=[n_hidden_1, n_hidden_2])),
+            'out_mean': tf.Variable(initialiser(shape=[n_hidden_2, n_z])),
+            'out_log_sigma': tf.Variable(initialiser(shape=[n_hidden_2, n_z]))}
            
         all_weights['B_e'] = {
             'b1': tf.Variable(tf.constant(0.1, shape=[n_hidden_1])),
@@ -69,10 +71,10 @@ class VAE(object):
             'out_log_sigma': tf.Variable(tf.constant(0.1, shape=[n_z]))}
             
         all_weights['W_d'] = {
-            'h1': tf.Variable(initializer(shape=[n_z, n_hidden_2])),
-            'h2': tf.Variable(initializer(shape=[n_hidden_2, n_hidden_1])),
-            'out_mean': tf.Variable(initializer(shape=[n_hidden_1, n_input])),
-            'out_log_sigma': tf.Variable(initializer(shape=[n_hidden_1, n_input]))}
+            'h1': tf.Variable(initialiser(shape=[n_z, n_hidden_2])),
+            'h2': tf.Variable(initialiser(shape=[n_hidden_2, n_hidden_1])),
+            'out_mean': tf.Variable(initialiser(shape=[n_hidden_1, n_input])),
+            'out_log_sigma': tf.Variable(initialiser(shape=[n_hidden_1, n_input]))}
             
         all_weights['B_d'] = {
             'b1': tf.Variable(tf.constant(0.1, shape=[n_hidden_2])),
@@ -101,37 +103,55 @@ class VAE(object):
         h_layer_1 = self.__tran_func(tf.add(tf.matmul(self.__z, weights['h1']), biases['b1']))
         h_layer_2 = self.__tran_func(tf.add(tf.matmul(h_layer_1, weights['h2']), biases['b2'])) 
     
-        x_reconstr_mean = tf.nn.sigmoid(tf.add(tf.matmul(h_layer_2, weights['out_mean']), biases['out_mean']))
+        x_reconstr_logits = tf.add(tf.matmul(h_layer_2, weights['out_mean']), biases['out_mean'])
+        x_reconstr_mean = tf.nn.sigmoid(x_reconstr_logits)
     
-        return x_reconstr_mean
+        return x_reconstr_logits, x_reconstr_mean
 
     # Define VAE Loss as sum of reconstruction term and KL Divergence regularisation term
     def __create_loss_optimiser(self):
         # 1.) The reconstruction loss (the negative log probability of the input under the reconstructed Bernoulli distribution 
         #     induced by the decoder in the data space). This can be interpreted as the number of "nats" required
         #     to reconstruct the input when the activation in latent space is given. Adding 1e-10 to avoid evaluation of log(0.0).
-        reconstr_loss = self.__x * tf.log(1e-10 + self.__x_reconstr_mean) + (1 - self.__x) * tf.log(1e-10 + 1 - self.__x_reconstr_mean)
-        self.__reconstr_loss = -tf.reduce_sum(reconstr_loss, 1)
-    
+        #reconstr_loss = self.__x * tf.log(1e-10 + self.__x_reconstr_mean) + (1 - self.__x) * tf.log(1e-10 + 1 - self.__x_reconstr_mean)
+        #reconstr_loss = -tf.reduce_sum(reconstr_loss, 1)
+        reconstr_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.__x_reconstr_logits, labels=self.__x)
+        reconstr_loss = tf.reduce_sum(reconstr_loss, reduction_indices=1)
+        
         # 2.) The latent loss, which is defined as the KL divergence between the distribution in latent space induced 
         #     by the encoder on the data and some prior. Acts as a regulariser and can be interpreted as the number of "nats" 
         #     required for transmitting the latent space distribution given the prior.
         latent_loss = 1 + self.__z_log_sigma_sq - tf.square(self.__z_mean) - tf.exp(self.__z_log_sigma_sq)
-        self.__latent_loss = -0.5 * tf.reduce_sum(latent_loss, 1)
-    
-        # Average over batch
-        self.__cost = tf.reduce_mean(self.__reconstr_loss + self.__latent_loss)
-    
-        # Use ADAM optimizer
-        self.__optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr).minimize(self.__cost)
+        latent_loss = -0.5 * tf.reduce_sum(latent_loss, 1)
+        
+        # Condition to check whether cost should be maximised for discrimination or not
+        condition = tf.equal(self.__discr, tf.constant(True))
+
+        # Compute cost depending on condition of maximisation or minimisation
+        cost = tf.add(reconstr_loss, latent_loss)
+        self.__cost = tf.where(condition, -cost, cost)
+        
+        # Average over batch, whilst protecting against non-finite values
+        self.__batch_cost = tf.reduce_mean(self.__cost)
+        
+        self.__optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.__batch_cost)
   
-    # Train model on mini-batch of input data
-    # Return cost of mini-batch
-    def partial_fit(self, sess, X):
-        opt, cost = sess.run((self.__optimizer, self.__cost), feed_dict={self.__x: X})
-    
+    # Train model on mini-batch of input data & return the cost
+    def partial_fit(self, sess, X, discr=None):
+        if discr is None:
+            discr = [False] * self.bs
+        
+        opt, cost = sess.run((self.__optimizer, self.__batch_cost), feed_dict={self.__x: X, self.__discr: discr})
+        
         return cost
   
+    # Return loss function values of VAE for each sample in batch
+    def get_vae_cost(self, sess, X, discr=None):
+        if discr is None:
+            discr = [False] * self.bs
+            
+        return sess.run((self.__cost), feed_dict={self.__x: X, self.__discr: discr})
+        
     # Transform data by mapping it into the latent space
     # Note: This maps to mean of distribution, alternatively could sample from Gaussian distribution
     def transform(self, sess, X):
@@ -149,6 +169,3 @@ class VAE(object):
     # Use VAE to reconstruct given data
     def reconstruct(self, sess, X):
         return sess.run(self.__x_reconstr_mean, feed_dict={self.__x: X})
-        
-    def get_vae_loss(self, sess, X):
-        return sess.run((self.__reconstr_loss, self.__latent_loss), feed_dict={self.__x: X})
