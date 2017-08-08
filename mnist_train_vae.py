@@ -25,6 +25,8 @@ def train_model(model, sess, n_epochs=100, display_step=5):
     # Training cycle
     for epoch in range(n_epochs):
         avg_cost = 0.
+        avg_recon = 0.
+        avg_latent = 0.
         total_batch = int(NUM_SAMPLES / FLAGS.bs)
     
         # Loop over all batches
@@ -32,14 +34,17 @@ def train_model(model, sess, n_epochs=100, display_step=5):
             batch_xs, _ = mnist.train.next_batch(FLAGS.bs)
 
             # Fit training using batch data
-            cost = model.partial_fit(sess, batch_xs)
-      
-            # Compute average loss
+            cost, recon, latent = model.partial_fit(sess, batch_xs)
+            
+            # Compute average losses
             avg_cost += (cost / NUM_SAMPLES) * FLAGS.bs
-
+            avg_recon += (recon / NUM_SAMPLES) * FLAGS.bs
+            avg_latent += (latent / NUM_SAMPLES) * FLAGS.bs
+            
         # Display logs per epoch step
         if epoch % display_step == 0:
-            print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(avg_cost))
+            print("Epoch: %04d / %04d, Cost= %04f, Recon= %04f, Latent= %04f" % \
+				(epoch, n_epochs, avg_cost, avg_recon, avg_latent))
                   
     return model
   

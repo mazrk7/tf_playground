@@ -84,6 +84,8 @@ def train_model(model, sess, class_index, n_epochs=100, display_step=5):
     # Training cycle
     for epoch in range(n_epochs):
         avg_cost = 0.
+        avg_recon = 0.
+        avg_latent = 0.
         total_batch = int(num_samples / model.bs)
         
         split_images, split_labels = first_epoch(split_images, split_labels, num_samples)
@@ -97,19 +99,19 @@ def train_model(model, sess, class_index, n_epochs=100, display_step=5):
 
             # Truth values for discrimination in training
             discr = np.equal(class_index, labels)
-            
+
             # Fit training using batch data
-            cost = model.partial_fit(sess, batch_xs, discr)
-            vec_cost = model.get_vae_cost(sess, batch_xs, discr)
-            
-            print(vec_cost)
+            cost, recon, latent = model.partial_fit(sess, batch_xs, discr)
             
             # Compute average loss
             avg_cost += (cost / num_samples) * model.bs
+            avg_recon += (recon / num_samples) * model.bs
+            avg_latent += (latent / num_samples) * model.bs
 
         # Display logs per epoch step
         if epoch % display_step == 0:
-            print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(avg_cost))
+            print("Epoch: %04d / %04d, Cost= %04f, Recon= %04f, Latent= %04f" % \
+				(epoch, n_epochs, avg_cost, avg_recon, avg_latent))
                   
     return model
 
@@ -117,8 +119,8 @@ def train_model(model, sess, class_index, n_epochs=100, display_step=5):
 def network_architecture():
     network_architecture = \
 	       {'n_input': IMAGE_PIXELS,    # MNIST data input
-	        'n_hidden_1': 50,          # Dimensionality of hidden layer 1
-	        'n_hidden_2': 50,          # Dimensionality of hidden layer 2
+	        'n_hidden_1': 1000,         # Dimensionality of hidden layer 1
+	        'n_hidden_2': 1000,         # Dimensionality of hidden layer 2
 	        'n_z': FLAGS.latent_dim}    # Dimensionality of latent space
 
     return network_architecture
@@ -127,7 +129,7 @@ def main(name, index, seed):
     model_path = 'models/' + name + '_' + str(index)
     
     # Define and instantiate VAE model
-    vae = VAE(network_architecture=network_architecture())
+    vae = VAE(network_architecture=network_architecture(), train_multiple=True)
     
     with tf.Session() as sess:
         np.random.seed(seed)

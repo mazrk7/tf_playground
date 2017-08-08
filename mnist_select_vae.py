@@ -8,6 +8,9 @@ import sys
 import numpy as np
 import tensorflow as tf
 
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+
 from tensorflow.examples.tutorials.mnist import input_data
 
 from vae import VAE
@@ -15,9 +18,68 @@ from mnist_single_vae import network_architecture
 
 mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
+# The MNIST images are always 28x28 pixels.
+IMAGE_SIZE = 28
+IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
+
 NUM_SAMPLES = mnist.test.num_examples
 NUM_CLASSES = 10
 
+# Sample a test input and see how well the modular VAE can reconstruct these samples
+def plot_single_model(sess, model):
+    x_sample = mnist.test.next_batch(model.bs)[0]
+    x_reconstruct = model.reconstruct(sess, x_sample)
+    vae_loss = model.get_vae_loss(sess, x_sample)
+
+    plt.figure(figsize=(8, 12))
+    for i in range(5):
+        plt.subplot(5, 2, 2*i + 1)
+        plt.imshow(x_sample[i].reshape(IMAGE_SIZE, IMAGE_SIZE), vmin=0, vmax=1, cmap='gray')
+        plt.title("Test input")
+        plt.colorbar()
+    
+        plt.subplot(5, 2, 2*i + 2)
+        plt.imshow(x_reconstruct[i].reshape(IMAGE_SIZE, IMAGE_SIZE), vmin=0, vmax=1, cmap='gray')
+        plt.title("Reconstruction")
+        plt.colorbar()
+        
+        print(vae_loss[i])
+
+    plt.tight_layout()
+    plt.show()
+    
+# Use the generator network to plot reconstrunctions at the relative positions in the latent space
+def plot_reconstructions(sess, model):
+    nx = ny = 20
+    x_values = np.linspace(-3, 3, nx)
+    y_values = np.linspace(-3, 3, ny)
+
+    canvas = np.empty((IMAGE_SIZE*ny, IMAGE_SIZE*nx))
+    for i, yi in enumerate(x_values):
+        for j, xi in enumerate(y_values):
+            z_mu = np.array([[xi, yi]] * model.bs)
+            x_mean = model.generate(sess, z_mu)
+      
+            canvas[(nx-i-1)*IMAGE_SIZE:(nx-i)*IMAGE_SIZE, j*IMAGE_SIZE:(j+1)*IMAGE_SIZE] = x_mean[0].reshape(IMAGE_SIZE, IMAGE_SIZE)
+
+    plt.figure(figsize=(8, 12))        
+    Xi, Yi = np.meshgrid(x_values, y_values)
+    plt.imshow(canvas, origin='upper', cmap='gray')
+    plt.tight_layout()
+    plt.show()    
+    
+# Train a VAE with 2d latent space and illustrate how the encoder (the recognition network) 
+# encodes some of the labeled inputs (collapsing the Gaussian distribution in latent space to its mean)
+def visualise_latent_space(sess, model, batch_size=5000):
+    x_sample, y_sample = mnist.test.next_batch(batch_size)
+    z_mu = model.transform(sess, x_sample)
+
+    plt.figure(figsize=(8, 6)) 
+    plt.scatter(z_mu[:, 0], z_mu[:, 1], c=np.argmax(y_sample, 1))
+    plt.colorbar()
+    plt.grid()
+    plt.show()    
+    
 # Sample some test inputs and visualize how well the VAE can reconstruct these samples
 def test_multiple_models(sess, model):    
     total_batch = int(NUM_SAMPLES / model.bs)
@@ -34,9 +96,7 @@ def test_multiple_models(sess, model):
             saver = tf.train.Saver()
             saver.restore(sess, model_path)
 
-            recon_loss, latent_loss = model.get_vae_loss(sess, batch_xs)    
-            cost_vec = recon_loss + latent_loss
-                
+            cost_vec = model.get_vae_loss(sess, batch_xs)     
             cost_array[:, index] = cost_vec
         
         min_cost_indices = tf.argmin(cost_array, axis=1)
@@ -48,6 +108,7 @@ def test_multiple_models(sess, model):
         
         correct_estimation = tf.equal(correct_indices, min_cost_indices)
         accuracy = tf.reduce_mean(tf.cast(correct_estimation, tf.float32))
+        print("Batch accuracy: %g" % sess.run(accuracy))
         print("Batch: %d" % i)
         
     mean_accuracy = tf.reduce_mean(accuracy)
@@ -59,8 +120,18 @@ def main(seed):
     with tf.Session() as sess:
         np.random.seed(seed)
         tf.set_random_seed(seed)
-                 
+        
         test_multiple_models(sess, vae)
+        
+        ##### DEBUGGING ROUTINES ####
+        #model_path = 'models/digit_model_7'
+            
+        #saver = tf.train.Saver()
+        #saver.restore(sess, model_path) 
+        
+        #plot_single_model(sess, vae)
+        #visualise_latent_space(sess, vae)
+        #plot_reconstructions(sess, vae)    
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

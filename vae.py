@@ -19,18 +19,21 @@ IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
 class VAE(object):
-    def __init__(self, network_architecture, transfer_func=tf.nn.relu):
+    def __init__(self, network_architecture, transfer_func=tf.nn.relu, train_multiple=False):
         self.net_arch = network_architecture
         self.lr = FLAGS.lr
         self.bs = FLAGS.bs
         
         self.__tran_func = transfer_func
-    
+        # Flag for whether cost function associated with training multiple VAE models
+        self.__train_multiple = train_multiple
+        
         # Graph input
         self.__x = tf.placeholder(tf.float32, [None, IMAGE_PIXELS])
-        # Boolean to signify whether input should be discriminated against
-        self.__discr = tf.placeholder(tf.bool, [None])
         
+        # Boolean tensor to signify whether input should be discriminated against
+        self.__discr = tf.placeholder(tf.bool, [None])
+   
         # Create VAE network
         self.__create_autoencoder()
     
@@ -116,22 +119,24 @@ class VAE(object):
         #reconstr_loss = self.__x * tf.log(1e-10 + self.__x_reconstr_mean) + (1 - self.__x) * tf.log(1e-10 + 1 - self.__x_reconstr_mean)
         #reconstr_loss = -tf.reduce_sum(reconstr_loss, 1)
         reconstr_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.__x_reconstr_logits, labels=self.__x)
-        reconstr_loss = tf.reduce_sum(reconstr_loss, reduction_indices=1)
+        self.__reconstr_loss = tf.reduce_sum(reconstr_loss, reduction_indices=1)
+        self.__m_reconstr_loss = tf.reduce_mean(self.__reconstr_loss)
         
         # 2.) The latent loss, which is defined as the KL divergence between the distribution in latent space induced 
         #     by the encoder on the data and some prior. Acts as a regulariser and can be interpreted as the number of "nats" 
         #     required for transmitting the latent space distribution given the prior.
         latent_loss = 1 + self.__z_log_sigma_sq - tf.square(self.__z_mean) - tf.exp(self.__z_log_sigma_sq)
-        latent_loss = -0.5 * tf.reduce_sum(latent_loss, 1)
+        self.__latent_loss = -0.5 * tf.reduce_sum(latent_loss, 1)
+        self.__m_latent_loss = tf.reduce_mean(self.__latent_loss)
         
-        # Condition to check whether cost should be maximised for discrimination or not
-        condition = tf.equal(self.__discr, tf.constant(True))
-
-        # Compute cost depending on condition of maximisation or minimisation
-        cost = tf.add(reconstr_loss, latent_loss)
-        self.__cost = tf.where(condition, -cost, cost)
+        # Compute cost depending on condition of maximisation or minimisation for discrimination or not
+        self.__cost = tf.add(self.__reconstr_loss, self.__latent_loss)
         
-        # Average over batch, whilst protecting against non-finite values
+        # If learning over multiple VAE models, then invert cost function for identifying class
+        if self.__train_multiple:
+            self.__cost = tf.where(self.__discr, self.__cost, (1./self.__cost))
+        
+        # Average over batch
         self.__batch_cost = tf.reduce_mean(self.__cost)
         
         self.__optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.__batch_cost)
@@ -141,16 +146,14 @@ class VAE(object):
         if discr is None:
             discr = [False] * self.bs
         
-        opt, cost = sess.run((self.__optimizer, self.__batch_cost), feed_dict={self.__x: X, self.__discr: discr})
+        opt, cost, recon_loss, latent_loss = sess.run((self.__optimizer, self.__batch_cost, self.__m_reconstr_loss, self.__m_latent_loss), 
+                                                       feed_dict={self.__x: X, self.__discr: discr})
         
-        return cost
+        return cost, recon_loss, latent_loss
   
-    # Return loss function values of VAE for each sample in batch
-    def get_vae_cost(self, sess, X, discr=None):
-        if discr is None:
-            discr = [False] * self.bs
-            
-        return sess.run((self.__cost), feed_dict={self.__x: X, self.__discr: discr})
+    # Return VAE loss across batch sammples
+    def get_vae_loss(self, sess, X):                  
+        return sess.run((self.__cost), feed_dict={self.__x: X})
         
     # Transform data by mapping it into the latent space
     # Note: This maps to mean of distribution, alternatively could sample from Gaussian distribution
