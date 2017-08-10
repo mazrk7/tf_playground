@@ -124,14 +124,15 @@ def main(seed):
         test_multiple_models(sess, vae)
         
         ##### DEBUGGING ROUTINES ####
-        #model_path = 'models/digit_model_7'
+        #for index in range(NUM_CLASSES):
+            #model_path = 'models/digit_model_' + str(index)
             
-        #saver = tf.train.Saver()
-        #saver.restore(sess, model_path) 
+            #saver = tf.train.Saver()
+            #saver.restore(sess, model_path) 
         
-        #plot_single_model(sess, vae)
-        #visualise_latent_space(sess, vae)
-        #plot_reconstructions(sess, vae)    
+            #plot_single_model(sess, vae)
+            #visualise_latent_space(sess, vae)
+            #plot_reconstructions(sess, vae)    
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

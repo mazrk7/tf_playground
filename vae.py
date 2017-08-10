@@ -17,9 +17,9 @@ FLAGS = flags.FLAGS
 # The MNIST images are always 28x28 pixels.
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
-
+        
 class VAE(object):
-    def __init__(self, network_architecture, transfer_func=tf.nn.relu, train_multiple=False):
+    def __init__(self, network_architecture, transfer_func=tf.nn.elu, train_multiple=False):
         self.net_arch = network_architecture
         self.lr = FLAGS.lr
         self.bs = FLAGS.bs
@@ -113,24 +113,36 @@ class VAE(object):
 
     # Define VAE Loss as sum of reconstruction term and KL Divergence regularisation term
     def __create_loss_optimiser(self):
-        # 1.) The reconstruction loss (the negative log probability of the input under the reconstructed Bernoulli distribution 
-        #     induced by the decoder in the data space). This can be interpreted as the number of "nats" required
-        #     to reconstruct the input when the activation in latent space is given. Adding 1e-10 to avoid evaluation of log(0.0).
+        ''' 1.) The reconstruction loss (the negative log probability of the input under the reconstructed Bernoulli distribution 
+                induced by the decoder in the data space). This can be interpreted as the number of "nats" required
+                to reconstruct the input when the activation in latent space is given. Adding 1e-10 to avoid evaluation of log(0.0).
+        '''
+        # Prone to numerical instability
         #reconstr_loss = self.__x * tf.log(1e-10 + self.__x_reconstr_mean) + (1 - self.__x) * tf.log(1e-10 + 1 - self.__x_reconstr_mean)
-        #reconstr_loss = -tf.reduce_sum(reconstr_loss, 1)
+        #self.__reconstr_loss = -tf.reduce_sum(reconstr_loss, 1)
+        
         reconstr_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.__x_reconstr_logits, labels=self.__x)
         self.__reconstr_loss = tf.reduce_sum(reconstr_loss, reduction_indices=1)
         self.__m_reconstr_loss = tf.reduce_mean(self.__reconstr_loss)
         
-        # 2.) The latent loss, which is defined as the KL divergence between the distribution in latent space induced 
-        #     by the encoder on the data and some prior. Acts as a regulariser and can be interpreted as the number of "nats" 
-        #     required for transmitting the latent space distribution given the prior.
-        latent_loss = 1 + self.__z_log_sigma_sq - tf.square(self.__z_mean) - tf.exp(self.__z_log_sigma_sq)
-        self.__latent_loss = -0.5 * tf.reduce_sum(latent_loss, 1)
+        ''' 2.) The latent loss, which is defined as the KL divergence between the distribution in latent space induced 
+                by the encoder on the data and some prior. Acts as a regulariser and can be interpreted as the number of "nats" 
+                required for transmitting the latent space distribution given the prior.
+                Fitting the variational objective is equivalent to optimising a lower bound on te log marginal likelihood,
+                given that we know KL-divergence is non-negative --> Termed "ELBO" or "Evidence Lower Bound"
+        '''
+        
+        # Clip values of KL divergence to prevent NANs
+        latent_loss = 1 + tf.clip_by_value(self.__z_log_sigma_sq, -10., 10.) \
+                        - tf.square(tf.clip_by_value(self.__z_mean, -10., 10.)) \
+                        - tf.exp(tf.clip_by_value(self.__z_log_sigma_sq, -10., 10.))                      
+        # latent_loss = 1 + self.__z_log_sigma_sq - tf.square(self.__z_mean) - tf.exp(self.__z_log_sigma_sq)
+        
+        self.__latent_loss = -0.5 * tf.reduce_sum(latent_loss, 1)     
         self.__m_latent_loss = tf.reduce_mean(self.__latent_loss)
         
         # Compute cost depending on condition of maximisation or minimisation for discrimination or not
-        self.__cost = tf.add(self.__reconstr_loss, self.__latent_loss)
+        self.__cost = self.__latent_loss #tf.add(self.__reconstr_loss, self.__latent_loss)
         
         # If learning over multiple VAE models, then invert cost function for identifying class
         if self.__train_multiple:
@@ -139,14 +151,20 @@ class VAE(object):
         # Average over batch
         self.__batch_cost = tf.reduce_mean(self.__cost)
         
-        self.__optimizer = tf.train.AdamOptimizer(learning_rate=self.lr).minimize(self.__batch_cost)
+        optimiser = tf.train.AdamOptimizer(learning_rate=self.lr)  
+        
+        # Extract trainable variables and gradients   
+        grads, tvars = zip(*optimiser.compute_gradients(self.__batch_cost))
+        # Use gradient clipping to avoid 'exploding' gradients
+        clipped, _ = tf.clip_by_global_norm(grads, 1.25)
+        self.__train_op = optimiser.apply_gradients(zip(clipped, tvars))
   
     # Train model on mini-batch of input data & return the cost
     def partial_fit(self, sess, X, discr=None):
         if discr is None:
             discr = [False] * self.bs
         
-        opt, cost, recon_loss, latent_loss = sess.run((self.__optimizer, self.__batch_cost, self.__m_reconstr_loss, self.__m_latent_loss), 
+        opt, cost, recon_loss, latent_loss = sess.run((self.__train_op, self.__batch_cost, self.__m_reconstr_loss, self.__m_latent_loss), 
                                                        feed_dict={self.__x: X, self.__discr: discr})
         
         return cost, recon_loss, latent_loss
