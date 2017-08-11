@@ -102,8 +102,7 @@ def train_model(model, sess, class_index, n_epochs=100, display_step=5):
 
             # Fit training using batch data
             cost, recon, latent = model.partial_fit(sess, batch_xs, discr)
-            #print(discr)
-            #print(cost)
+            
             # Compute average loss
             avg_cost += (cost / num_samples) * model.bs
             avg_recon += (recon / num_samples) * model.bs
