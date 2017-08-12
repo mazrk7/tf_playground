@@ -29,7 +29,7 @@ NUM_CLASSES = 10
 def plot_single_model(sess, model):
     x_sample = mnist.test.next_batch(model.bs)[0]
     x_reconstruct = model.reconstruct(sess, x_sample)
-    vae_loss = model.get_vae_loss(sess, x_sample)
+    vae_loss = model.get_latent_loss(sess, x_sample)
 
     plt.figure(figsize=(8, 12))
     for i in range(5):
@@ -76,7 +76,7 @@ def test_multiple_models(sess, model):
             saver = tf.train.Saver()
             saver.restore(sess, model_path)
 
-            cost_vec = model.get_vae_loss(sess, batch_xs)     
+            cost_vec = model.get_latent_loss(sess, batch_xs)     
             cost_array[:, index] = cost_vec
         
         min_cost_indices = tf.argmin(cost_array, axis=1)
