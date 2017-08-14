@@ -118,10 +118,10 @@ def train_model(model, sess, class_index, n_epochs=100, display_step=5):
 # Define the network architecture
 def network_architecture():
     network_architecture = \
-	       {'n_input': IMAGE_PIXELS,    # MNIST data input
-	        'n_hidden_1': 20,           # Dimensionality of hidden layer 1
-	        'n_hidden_2': 20,           # Dimensionality of hidden layer 2
-	        'n_z': FLAGS.latent_dim}    # Dimensionality of latent space
+	       {'n_input': IMAGE_PIXELS,     # MNIST data input
+	        'n_hidden_1': 500,           # Dimensionality of hidden layer 1
+	        'n_hidden_2': 500,           # Dimensionality of hidden layer 2
+	        'n_z': FLAGS.latent_dim}     # Dimensionality of latent space
 
     return network_architecture
   

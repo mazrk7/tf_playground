@@ -101,17 +101,17 @@ def main(seed):
         np.random.seed(seed)
         tf.set_random_seed(seed)
         
-        #test_multiple_models(sess, vae)
+        test_multiple_models(sess, vae)
         
         ##### DEBUGGING ROUTINES ####
-        for index in range(NUM_CLASSES):
-            model_path = 'models/digit_model_' + str(index)
+        #for index in range(NUM_CLASSES):
+            #model_path = 'models/digit_model_' + str(index)
             
-            saver = tf.train.Saver()
-            saver.restore(sess, model_path) 
+            #saver = tf.train.Saver()
+            #saver.restore(sess, model_path) 
         
-            plot_single_model(sess, vae)
-            visualise_latent_space(sess, vae)
+            #plot_single_model(sess, vae)
+            #visualise_latent_space(sess, vae)
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
