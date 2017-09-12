@@ -7,14 +7,14 @@ import tensorflow as tf
 
 flags = tf.flags
 
+flags.DEFINE_string("dataset", "mnist", "Name of dataset to load")
 flags.DEFINE_integer("bs", 128, "batch size")
-flags.DEFINE_integer("n_epochs", 75, "number of training epochs")
+flags.DEFINE_integer("n_epochs", 50, "number of training epochs")
 flags.DEFINE_float("lr", 1e-5, "learning rate")
 flags.DEFINE_integer("latent_dim", 50, "latent dimensionality")
 
 FLAGS = flags.FLAGS
 
-# The MNIST images are always 28x28 pixels.
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
         
