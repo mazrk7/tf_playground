@@ -10,7 +10,6 @@ import tensorflow as tf
 from vae import VAE
 from vae import FLAGS
 
-# The MNIST images are always 28x28 pixels.
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 

@@ -17,7 +17,6 @@ flags.DEFINE_integer("latent_dim", 2, "latent_dim")
 
 FLAGS = flags.FLAGS
 
-# The MNIST images are always 28x28 pixels.
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 

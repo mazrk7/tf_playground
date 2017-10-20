@@ -39,7 +39,6 @@ flags.DEFINE_float("keep_prob", .5, "dropout rate")
 
 FLAGS = flags.FLAGS
 
-# The MNIST images are always 28x28 pixels.
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 

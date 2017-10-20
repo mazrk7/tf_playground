@@ -33,7 +33,6 @@ flags.DEFINE_float("lr", .5, "learning rate")
 
 FLAGS = flags.FLAGS
 
-# The MNIST images are always 28x28 pixels.
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
