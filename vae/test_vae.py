@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import argparse
 import sys
-import datasets
 
 import numpy as np
 import tensorflow as tf
@@ -12,6 +11,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
+from dataset import load_data
 from vae import VAE
 from vae import FLAGS
 from train_vae import network_architecture
@@ -20,8 +20,8 @@ IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
 # Sample a test input and see how well the VAE can reconstruct these samples
-def test_model(sess, model, dataset):
-    x_sample = dataset.next_batch(model.bs)[0]
+def test_model(sess, model, test_data):
+    x_sample = test_data.next_batch(model.bs)[0]
     x_reconstruct = model.reconstruct(sess, x_sample)
 
     plt.figure(figsize=(8, 12))
@@ -41,8 +41,8 @@ def test_model(sess, model, dataset):
     
 # Train a VAE with 2d latent space and illustrate how the encoder (the recognition network) 
 # encodes some of the labeled inputs (collapsing the Gaussian distribution in latent space to its mean)
-def visualise_latent_space(sess, model, dataset, batch_size=5000):
-    x_sample, y_sample = dataset.next_batch(batch_size)
+def visualise_latent_space(sess, model, test_data, batch_size=5000):
+    x_sample, y_sample = test_data.next_batch(batch_size)
     z_mu = model.transform(sess, x_sample)
 
     plt.figure(figsize=(8, 6)) 
@@ -73,7 +73,7 @@ def plot_reconstructions(sess, model):
       
 def main(name, seed): 
     model_path = 'models/' + name
-    _, _, test = datasets.load_data(FLAGS.dataset)
+    data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
     
     # Define and instantiate VAE model
     vae = VAE(network_architecture=network_architecture())
@@ -86,10 +86,10 @@ def main(name, seed):
         saver.restore(sess, model_path)
         print("Model restored from: %s" % model_path)
             
-        test_model(sess, vae, test)
+        test_model(sess, vae, data.test)
   
         if vae.net_arch['n_z'] == 2:
-            visualise_latent_space(sess, vae, test)
+            visualise_latent_space(sess, vae, data.test)
             plot_reconstructions(sess, vae)
     
 if __name__ == '__main__':

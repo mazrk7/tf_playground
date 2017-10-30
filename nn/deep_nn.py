@@ -27,8 +27,9 @@ from __future__ import print_function
 
 import sys
 import tensorflow as tf
-import datasets
-import nn_utils
+
+from dataset import load_data
+from nn import nn_utils
 
 flags = tf.flags
 
@@ -114,7 +115,7 @@ def deepnn(x):
   return y_conv, keep_prob
 
 def main():
-  train, _, test = datasets.load_data(FLAGS.dataset)
+  data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
 
   ####################################### DEFINE MODEL #######################################
   
@@ -144,11 +145,11 @@ def main():
   # With block serves to automatically destroy session or release memory once block is exited
   with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
-    #### TRAINING FOR 2000 STEPS ####
+    #### TRAINING ####
     # Add keep_prob parameter to control the dropout rate
     for i in range(2000):
       # Get a 'batch' of `batch_size random data points from training set each loop iteration
-      batch = train.next_batch(FLAGS.bs)
+      batch = data.train.next_batch(FLAGS.bs)
       # Logging every 100th iteration
       if i % 100 == 0:
         train_accuracy = accuracy.eval(feed_dict={x: batch[0], y_: batch[1], keep_prob: 1.0})
@@ -157,7 +158,7 @@ def main():
 
   ######################################### TESTING #########################################
     print('test accuracy %g' % accuracy.eval(feed_dict={
-        x: test.images, y_: test.labels, keep_prob: 1.0}))
+        x: data.test.images, y_: data.test.labels, keep_prob: 1.0}))
 
 if __name__ == '__main__':
   main()

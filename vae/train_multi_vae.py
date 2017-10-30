@@ -4,78 +4,39 @@ from __future__ import print_function
 
 import argparse
 import sys
-import datasets
 
 import numpy as np
 import tensorflow as tf
 
+from dataset import load_data, DataSet
 from vae import VAE
 from vae import FLAGS
 
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
-def segment_dataset(dataset, class_index):
+def segment_dataset(train_data, class_index):
     # Extract indices of relevant class
-    class_indices = np.where(np.array(dataset.labels)[:, class_index] == 1.0)[0]
-    discr_indices = np.where(np.array(dataset.labels)[:, class_index] != 1.0)[0]
+    class_indices = np.where(np.array(train_data.labels)[:, class_index] == 1.0)[0]
+    discr_indices = np.where(np.array(train_data.labels)[:, class_index] != 1.0)[0]
 
     # Randomly shuffle discriminating classes to use in training
     np.random.shuffle(discr_indices)
     
     # Even split between single and discriminable model training data
-    class_images = dataset.images[class_indices]
-    class_labels = dataset.labels[class_indices]
-    discr_images = dataset.images[discr_indices[0:len(class_indices)]]
-    discr_labels = dataset.labels[discr_indices[0:len(class_indices)]]
+    class_images = train_data.images[class_indices]
+    class_labels = train_data.labels[class_indices]
+    discr_images = train_data.images[discr_indices[0:len(class_indices)]]
+    discr_labels = train_data.labels[discr_indices[0:len(class_indices)]]
     
     return np.concatenate((class_images, discr_images), axis=0), np.concatenate((class_labels, discr_labels), axis=0)
-
-# Shuffle for the first epoch
-def first_epoch(split_images, split_labels, num_samples):
-    perm0 = np.arange(num_samples)
-    np.random.shuffle(perm0)
-    split_images = split_images[perm0]
-    split_labels = split_labels[perm0]
-    
-    return split_images, split_labels
-        
-def next_batch(split_images, split_labels, batch_size, index_in_epoch, num_samples):
-    """Return the next `batch_size` examples from the MNIST data set."""
-    start = index_in_epoch
-    
-    # Go to the next epoch
-    if start + batch_size > num_samples:
-        # Get the rest examples in this epoch
-        rest_num_examples = num_samples - start
-        images_rest_part = split_images[start:num_samples]
-        labels_rest_part = split_labels[start:num_samples]
-      
-        # Shuffle the data
-        perm = np.arange(num_samples)
-        np.random.shuffle(perm)
-        split_images = split_images[perm]
-        split_labels = split_labels[perm]
-      
-        # Start next epoch
-        start = 0
-        index_in_epoch = batch_size - rest_num_examples
-        end = index_in_epoch
-        images_new_part = split_images[start:end]
-        labels_new_part = split_labels[start:end]
-      
-        return np.concatenate((images_rest_part, images_new_part), axis=0) , np.concatenate((labels_rest_part, labels_new_part), axis=0), index_in_epoch
-    else:
-        index_in_epoch += batch_size
-        end = index_in_epoch
-        
-        return split_images[start:end], split_labels[start:end], index_in_epoch
         
 # Train the VAE using mini-batches
-def train_model(sess, model, dataset, class_index, n_epochs=100, display_step=5):
-    split_images, split_labels = segment_dataset(dataset, class_index)
-    num_samples = len(split_images)
-    index_in_epoch = 0
+def train_model(sess, model, train_data, class_index, n_epochs=100, display_step=5):
+    split_images, split_labels = segment_dataset(train_data, class_index)
+    segmented_set = DataSet(split_images, split_labels)
+    
+    num_samples = segmented_set.num_examples
     
     # Training cycle
     for epoch in range(n_epochs):
@@ -84,11 +45,9 @@ def train_model(sess, model, dataset, class_index, n_epochs=100, display_step=5)
         avg_latent = 0.
         total_batch = int(num_samples / model.bs)
         
-        split_images, split_labels = first_epoch(split_images, split_labels, num_samples)
-        
         # Loop over all batches
         for i in range(total_batch):
-            batch_xs, batch_ys, index_in_epoch = next_batch(split_images, split_labels, model.bs, index_in_epoch, num_samples)
+            batch_xs, batch_ys = segmented_set.next_batch(model.bs)
             
             # Converts one hot representation to dense array of labels
             labels = np.where(np.equal(batch_ys, 1.0))[1]
@@ -123,7 +82,7 @@ def network_architecture():
   
 def main(name, index, seed):
     model_path = 'models/' + name + '_' + str(index)
-    train, _, _ = datasets.load_data(FLAGS.dataset)
+    data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
     
     # Define and instantiate VAE model
     vae = VAE(network_architecture=network_architecture(), train_multiple=True)
@@ -138,7 +97,7 @@ def main(name, index, seed):
         # Launch session
         sess.run(init)
         
-        vae_trained = train_model(sess, vae, train, index, n_epochs=FLAGS.n_epochs)
+        vae_trained = train_model(sess, vae, data.train, index, n_epochs=FLAGS.n_epochs)
   
         # Create a saver object that will store all the parameter variables
         saver = tf.train.Saver()

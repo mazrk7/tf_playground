@@ -1,8 +1,9 @@
 """Configuration variables."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+GLOBAL_DATA_DIR = '/home/mark/workspace/tensorflow/scripts/standard_api/datasets'
 
-DATA_DIR = 'datasets'
-OMNIGLOT = 'omniglot_07-19-2017.mat'
+MNIST_DIR = 'MNIST-data'
+
+WORKLOAD_DIR = 'workload-data'
+WORKLOAD_DATA = 'workload-features.mat'
+WORKLOAD_LABELS = 'workload-labels.mat'

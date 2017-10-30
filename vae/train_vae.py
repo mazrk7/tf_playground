@@ -4,9 +4,10 @@ from __future__ import print_function
 
 import argparse
 import sys
-import datasets
+
 import tensorflow as tf
 
+from dataset import load_data
 from vae import VAE
 from vae import FLAGS
 
@@ -14,7 +15,9 @@ IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
 # Train the VAE using mini-batches
-def train_model(sess, model, num_samples, dataset, n_epochs=100, display_step=5):
+def train_model(sess, model, train_data, n_epochs=100, display_step=5):
+    num_samples = train_data.num_examples
+    
     # Training cycle
     for epoch in range(n_epochs):
         avg_cost = 0.
@@ -24,7 +27,7 @@ def train_model(sess, model, num_samples, dataset, n_epochs=100, display_step=5)
     
         # Loop over all batches
         for i in range(total_batch):
-            batch_xs, _ = dataset.next_batch(FLAGS.bs)
+            batch_xs, _ = train_data.next_batch(FLAGS.bs)
 
             # Fit training using batch data
             cost, recon, latent = model.partial_fit(sess, batch_xs)
@@ -68,7 +71,7 @@ def conv_network_architecture():
     
 def main(name, seed):
     model_path = 'models/' + name
-    train, _, _ = datasets.load_data(FLAGS.dataset)
+    data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
     
     # Define and instantiate VAE model
     vae = VAE(network_architecture=network_architecture()) 
@@ -82,7 +85,7 @@ def main(name, seed):
         # Launch session
         sess.run(init)
         
-        vae_trained = train_model(sess, vae, train.num_examples, train, n_epochs=FLAGS.n_epochs)
+        vae_trained = train_model(sess, vae, data.train, n_epochs=FLAGS.n_epochs)
   
         # Create a saver object that will store all the parameter variables
         saver = tf.train.Saver()

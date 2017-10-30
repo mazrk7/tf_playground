@@ -4,7 +4,8 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-import nn_utils
+
+from nn import nn_utils
 
 flags = tf.flags
 

@@ -11,7 +11,7 @@ flags.DEFINE_string("dataset", "mnist", "Name of dataset to load")
 flags.DEFINE_integer("bs", 128, "batch size")
 flags.DEFINE_integer("n_epochs", 50, "number of training epochs")
 flags.DEFINE_float("lr", 1e-5, "learning rate")
-flags.DEFINE_integer("latent_dim", 50, "latent dimensionality")
+flags.DEFINE_integer("latent_dim", 2, "latent dimensionality")
 
 FLAGS = flags.FLAGS
 
@@ -145,10 +145,11 @@ class VAE(object):
         self.__latent_loss = -0.5 * tf.reduce_sum(latent_loss, axis=1)     
         self.__m_latent_loss = tf.reduce_mean(self.__latent_loss)
         
-        self.__cost = self.__latent_loss # tf.add(self.__reconstr_loss, self.__latent_loss)
-        
         if self.__train_multiple:    
+            self.__cost = self.__latent_loss
             self.__cost = tf.where(self.__discr, self.__latent_loss, (1./self.__latent_loss))
+        else:
+            self.__cost = tf.add(self.__reconstr_loss, self.__latent_loss)
         
         # Average over batch
         self.__batch_cost = tf.reduce_mean(self.__cost)
