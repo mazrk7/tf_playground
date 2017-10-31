@@ -26,19 +26,11 @@ from __future__ import division
 from __future__ import print_function
 
 import sys
+import argparse
 import tensorflow as tf
 
 from dataset import load_data
 from nn import nn_utils
-
-flags = tf.flags
-
-flags.DEFINE_string("dataset", "mnist", "Name of dataset to load")
-flags.DEFINE_integer("bs", 200, "batch size")
-flags.DEFINE_float("lr", 1e-4, "learning rate")
-flags.DEFINE_float("keep_prob", .5, "dropout rate")
-
-FLAGS = flags.FLAGS
 
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
@@ -114,7 +106,7 @@ def deepnn(x):
   
   return y_conv, keep_prob
 
-def main():
+def main(_):
   data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
 
   ####################################### DEFINE MODEL #######################################
@@ -133,7 +125,7 @@ def main():
   cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv))
   
   # Replaced SGD optimiser for more sophisticated ADAM optimiser
-  train_step = tf.train.AdamOptimizer(FLAGS.lr).minimize(cross_entropy)
+  train_step = tf.train.AdamOptimizer(FLAGS.learn_rate).minimize(cross_entropy)
   correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
   accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
@@ -149,7 +141,8 @@ def main():
     # Add keep_prob parameter to control the dropout rate
     for i in range(2000):
       # Get a 'batch' of `batch_size random data points from training set each loop iteration
-      batch = data.train.next_batch(FLAGS.bs)
+      batch = data.train.next_batch(FLAGS.batch_size)
+      
       # Logging every 100th iteration
       if i % 100 == 0:
         train_accuracy = accuracy.eval(feed_dict={x: batch[0], y_: batch[1], keep_prob: 1.0})
@@ -161,4 +154,13 @@ def main():
         x: data.test.images, y_: data.test.labels, keep_prob: 1.0}))
 
 if __name__ == '__main__':
-  main()
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument('--dataset', type=str, default='mnist', help='Name of dataset to load')
+  parser.add_argument('--batch_size', type=int, default='128', help='Sets the batch size')
+  parser.add_argument('--learn_rate', type=float, default='1e-4', help='Sets the learning rate')
+  parser.add_argument('--keep_prob', type=float, default='.5', help='Sets the dropout rate')
+  
+  FLAGS, unparsed = parser.parse_known_args()
+  
+  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

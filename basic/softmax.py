@@ -1,28 +1,39 @@
-"""A very simple MNIST classifier. See extensive documentation at https://www.tensorflow.org/get_started/mnist/beginners"""
+# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+"""A very simple MNIST classifier.
+See extensive documentation at
+https://www.tensorflow.org/get_started/mnist/beginners
+"""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import sys
+import argparse
 import tensorflow as tf
 
 from dataset import load_data
-
-flags = tf.flags
-
-flags.DEFINE_string("dataset", "mnist", "Name of dataset to load")
-flags.DEFINE_integer("bs", 100, "batch size")
-flags.DEFINE_float("lr", .5, "learning rate")
-
-FLAGS = flags.FLAGS
 
 IMAGE_SIZE = 28
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
 NUM_CLASSES = 10
 
-def main():
+def main(_):
   # Import data
   data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
 
@@ -62,7 +73,7 @@ def main():
   
   #### APPLY OPTIMISATION ####
   # In one line, compute gradients, compute parameter update steps and apply update steps to parameters
-  train_step = tf.train.GradientDescentOptimizer(FLAGS.lr).minimize(cross_entropy)
+  train_step = tf.train.GradientDescentOptimizer(FLAGS.learn_rate).minimize(cross_entropy)
 
   # Launch model in an interactive session
   sess = tf.InteractiveSession()
@@ -72,7 +83,7 @@ def main():
   # Stochastic GD as it's less expensive than using all available data for every training step
   for _ in range(1000):
     # Get a 'batch' of `batch_size` random data points from training set each loop iteration
-    batch_xs, batch_ys = data.train.next_batch(FLAGS.bs)
+    batch_xs, batch_ys = data.train.next_batch(FLAGS.batch_size)
     # Run train_step, feeding in the batch data to replace placeholders
     sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
 
@@ -83,4 +94,12 @@ def main():
   print(sess.run(accuracy, feed_dict={x: data.test.images, y_: data.test.labels}))
 
 if __name__ == '__main__':
-  main()
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument('--dataset', type=str, default='mnist', help='Name of dataset to load')
+  parser.add_argument('--batch_size', type=int, default='100', help='Sets the batch size')
+  parser.add_argument('--learn_rate', type=float, default='.5', help='Sets the learning rate')
+  
+  FLAGS, unparsed = parser.parse_known_args()
+  
+  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

@@ -110,8 +110,9 @@ def load_data(dataset, one_hot=False, validation_size=5000):
     data_dir = config.WORKLOAD_DIR
   else:
     raise ValueError("Invalid dataset %s" % dataset)
-    
-  return reader(os.path.join(config.GLOBAL_DATA_DIR, data_dir), one_hot=one_hot, validation_size=validation_size)
+  
+  global_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), config.GLOBAL_DATA_DIR)
+  return reader(os.path.join(global_dir, data_dir), one_hot=one_hot, validation_size=validation_size)
 
 def read_mnist(data_dir,
                one_hot=False,

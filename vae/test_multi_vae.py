@@ -13,7 +13,7 @@ import matplotlib.gridspec as gridspec
 
 from dataset import load_data, DataSet
 from vae import VAE
-from vae import FLAGS
+from conv_vae import ConvVAE
 from train_multi_vae import network_architecture
 
 IMAGE_SIZE = 28
@@ -22,101 +22,107 @@ IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 NUM_CLASSES = 10
 
 # Sample a test input and see how well the modular VAE can reconstruct these samples
-def plot_single_model(sess, model, test_data):
-    x_sample = test_data.next_batch(model.bs)[0]
-    x_reconstruct = model.reconstruct(sess, x_sample)
-    vae_loss = model.get_latent_loss(sess, x_sample)
+def plot_single_model(sess, model, test_data, batch_size):
+  x_sample = test_data.next_batch(batch_size)[0]
+  x_reconstruct = model.reconstruct(sess, x_sample)
+  vae_loss = model.get_latent_loss(sess, x_sample)
 
-    plt.figure(figsize=(8, 12))
-    for i in range(5):
-        plt.subplot(5, 2, 2*i + 1)
-        plt.imshow(x_sample[i].reshape(IMAGE_SIZE, IMAGE_SIZE), vmin=0, vmax=1, cmap='gray')
-        plt.title("Test input")
-        plt.colorbar()
+  plt.figure(figsize=(8, 12))
+  for i in range(5):
+    plt.subplot(5, 2, 2*i + 1)
+    plt.imshow(x_sample[i].reshape(IMAGE_SIZE, IMAGE_SIZE), vmin=0, vmax=1, cmap='gray')
+    plt.title("Test input")
+    plt.colorbar()
+
+    plt.subplot(5, 2, 2*i + 2)
+    plt.imshow(x_reconstruct[i].reshape(IMAGE_SIZE, IMAGE_SIZE), vmin=0, vmax=1, cmap='gray')
+    plt.title("Reconstruction")
+    plt.colorbar()
     
-        plt.subplot(5, 2, 2*i + 2)
-        plt.imshow(x_reconstruct[i].reshape(IMAGE_SIZE, IMAGE_SIZE), vmin=0, vmax=1, cmap='gray')
-        plt.title("Reconstruction")
-        plt.colorbar()
-        
-        print(vae_loss[i])
+    print(vae_loss[i])
 
-    plt.tight_layout()
-    plt.show()
+  plt.tight_layout()
+  plt.show()
     
 # Train a VAE with 2d latent space and illustrate how the encoder (the recognition network) 
 # encodes some of the labeled inputs (collapsing the Gaussian distribution in latent space to its mean)
 def visualise_latent_space(sess, model, test_data, batch_size=5000):
-    x_sample, y_sample = test_data.next_batch(batch_size)
-    z_mu = model.transform(sess, x_sample)
+  x_sample, y_sample = test_data.next_batch(batch_size)
+  z_mu = model.transform(sess, x_sample)
 
-    plt.figure(figsize=(8, 6)) 
-    plt.scatter(z_mu[:, 0], z_mu[:, 1], c=np.argmax(y_sample, 1))
-    plt.colorbar()
-    plt.grid()
-    plt.show()    
+  plt.figure(figsize=(8, 6)) 
+  plt.scatter(z_mu[:, 0], z_mu[:, 1], c=np.argmax(y_sample, 1))
+  plt.colorbar()
+  plt.grid()
+  plt.show()
+      
+def main(_): 
+  data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
+
+  # Define and instantiate VAE model
+  if FLAGS.vae_type == 'vae':
+    vae = VAE(network_architecture=network_architecture(FLAGS.vae_type, FLAGS.latent_dim), batch_size=FLAGS.batch_size, learn_rate=FLAGS.learn_rate, train_multiple=True) 
+  elif FLAGS.vae_type == 'conv':
+    vae = ConvVAE(network_architecture=network_architecture(FLAGS.vae_type, FLAGS.latent_dim), batch_size=FLAGS.batch_size, learn_rate=FLAGS.learn_rate, train_multiple=True) 
+  else:
+    raise ValueError("Autoencoder type should be either conv or vae. Received: {}.".format(FLAGS.vae_type))
     
-# Sample some test inputs and visualize how well the VAE can reconstruct these samples
-def test_multiple_models(sess, model, test_data):  
-    num_samples = test_data.num_examples  
-    total_batch = int(num_samples / model.bs)
+  # Sample some test inputs and visualize how well the VAE can reconstruct these samples
+  with tf.Session() as sess:
+    np.random.seed(FLAGS.seed)
+    tf.set_random_seed(FLAGS.seed)
    
     # Loop over all batches
-    for i in range(total_batch):
-        batch_xs, batch_ys = test_data.next_batch(model.bs)
+    for i in range(FLAGS.batch_count):
+      batch_xs, batch_ys = data.test.next_batch(FLAGS.batch_size)
         
-        # Initialise a cost array for each model's reconstruction of a sample
-        cost_array = np.zeros((model.bs, NUM_CLASSES), dtype=np.float32)
-        for index in range(NUM_CLASSES):
-            model_path = 'models/digit_model_' + str(index)
+      # Initialise a cost array for each model's reconstruction of a sample
+      cost_array = np.zeros((FLAGS.batch_size, NUM_CLASSES), dtype=np.float32)
+      for index in range(NUM_CLASSES):
+        model_path = 'models/digit_model_' + str(index)
             
-            saver = tf.train.Saver()
-            saver.restore(sess, model_path)
+        saver = tf.train.Saver()
+        saver.restore(sess, model_path)
 
-            cost_vec = model.get_latent_loss(sess, batch_xs)     
-            cost_array[:, index] = cost_vec
+        cost_vec = vae.get_latent_loss(sess, batch_xs)     
+        cost_array[:, index] = cost_vec
         
-        min_cost_indices = tf.argmin(cost_array, axis=1)
+      min_cost_indices = tf.argmin(cost_array, axis=1)
         
-        # Converts one hot representation to dense array of locations
-        locations = tf.where(tf.equal(batch_ys, 1.0))
-        # Strip first column
-        correct_indices = locations[:, 1]
+      # Converts one hot representation to dense array of locations
+      locations = tf.where(tf.equal(batch_ys, 1.0))
+      # Strip first column
+      correct_indices = locations[:, 1]
         
-        correct_estimation = tf.equal(correct_indices, min_cost_indices)
-        accuracy = tf.reduce_mean(tf.cast(correct_estimation, tf.float32))
-        print("Batch accuracy: %g" % sess.run(accuracy))
-        print("Batch: %d" % i)
+      correct_estimation = tf.equal(correct_indices, min_cost_indices)
+      accuracy = tf.reduce_mean(tf.cast(correct_estimation, tf.float32))
+      print("Batch %d accuracy: %g" % (i, sess.run(accuracy)))
         
     mean_accuracy = tf.reduce_mean(accuracy)
     print("Test accuracy of multiple-selection VAE models: %g" % sess.run(mean_accuracy))
-      
-def main(seed): 
-    vae = VAE(network_architecture=network_architecture())
-    data = load_data(FLAGS.dataset, one_hot=True, validation_size=10000)
-    
-    with tf.Session() as sess:
-        np.random.seed(seed)
-        tf.set_random_seed(seed)
         
-        test_multiple_models(sess, vae, data.test)
-        
-        ##### DEBUGGING ROUTINES ####
-        #for index in range(NUM_CLASSES):
-            #model_path = 'models/digit_model_' + str(index)
+    ##### DEBUGGING ROUTINES ####
+    #for index in range(NUM_CLASSES):
+      #model_path = 'models/digit_model_' + str(index)
             
-            #saver = tf.train.Saver()
-            #saver.restore(sess, model_path) 
+      #saver = tf.train.Saver()
+      #saver.restore(sess, model_path) 
         
-            #plot_single_model(sess, vae, data.test)
-            #visualise_latent_space(sess, vae, data.test)
+      #plot_single_model(sess, vae, data.test, FLAGS.batch_size)
+      #visualise_latent_space(sess, vae, data.test)
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser()
     
-    parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
+  parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
+  parser.add_argument('--batch_count', type=int, default='30', help='Number of batches to test models over')
     
-    args = parser.parse_args()
-    arguments = args.__dict__
-    
-    main(**arguments)      
+  parser.add_argument('--dataset', type=str, default='mnist', help='Name of dataset to load')
+  parser.add_argument('--vae_type', type=str, default='vae', help='Either a standard VAE (vae) or a convolutational VAE (conv)')
+  parser.add_argument('--batch_size', type=int, default='100', help='Sets the batch size')
+  parser.add_argument('--learn_rate', type=float, default='1e-5', help='Sets the learning rate')
+  parser.add_argument('--latent_dim', type=int, default='2', help='Latent dimensionality of the VAE')
+      
+  FLAGS, unparsed = parser.parse_known_args()
+  
+  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)    

@@ -1,6 +1,6 @@
 """Configuration variables."""
 
-GLOBAL_DATA_DIR = '/home/mark/workspace/tensorflow/scripts/tf-scripts/datasets'
+GLOBAL_DATA_DIR = 'datasets'
 
 MNIST_DIR = 'MNIST-data'
 
