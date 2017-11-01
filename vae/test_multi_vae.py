@@ -25,8 +25,8 @@ NUM_CLASSES = 10
 def plot_single_model(sess, model, test_data, batch_size):
   x_sample = test_data.next_batch(batch_size)[0]
   x_reconstruct = model.reconstruct(sess, x_sample)
-  vae_loss = model.get_latent_loss(sess, x_sample)
-
+  z_mu = model.transform(sess, x_sample)
+  
   plt.figure(figsize=(8, 12))
   for i in range(5):
     plt.subplot(5, 2, 2*i + 1)
@@ -39,7 +39,7 @@ def plot_single_model(sess, model, test_data, batch_size):
     plt.title("Reconstruction")
     plt.colorbar()
     
-    print(vae_loss[i])
+    print(np.sqrt(np.sum(z_mu[i]**2)))
 
   plt.tight_layout()
   plt.show()
@@ -72,7 +72,7 @@ def main(_):
     np.random.seed(FLAGS.seed)
     tf.set_random_seed(FLAGS.seed)
    
-    # Loop over all batches
+    # Loop over `batch_count` batches
     for i in range(FLAGS.batch_count):
       batch_xs, batch_ys = data.test.next_batch(FLAGS.batch_size)
         
@@ -84,9 +84,9 @@ def main(_):
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
 
-        cost_vec = vae.get_latent_loss(sess, batch_xs)     
-        cost_array[:, index] = cost_vec
-        
+        z_mu = vae.transform(sess, batch_xs)
+        cost_array[:, index] = np.sqrt(np.sum(z_mu**2, axis=1))
+
       min_cost_indices = tf.argmin(cost_array, axis=1)
         
       # Converts one hot representation to dense array of locations
@@ -102,20 +102,21 @@ def main(_):
     print("Test accuracy of multiple-selection VAE models: %g" % sess.run(mean_accuracy))
         
     ##### DEBUGGING ROUTINES ####
-    #for index in range(NUM_CLASSES):
-      #model_path = 'models/digit_model_' + str(index)
+    for index in range(NUM_CLASSES):
+      model_path = 'models/digit_model_' + str(index)
             
-      #saver = tf.train.Saver()
-      #saver.restore(sess, model_path) 
+      saver = tf.train.Saver()
+      saver.restore(sess, model_path) 
         
-      #plot_single_model(sess, vae, data.test, FLAGS.batch_size)
-      #visualise_latent_space(sess, vae, data.test)
-    
+      plot_single_model(sess, vae, data.test, FLAGS.batch_size)
+      if FLAGS.latent_dim == 2:
+        visualise_latent_space(sess, vae, data.test)
+        
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
     
   parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
-  parser.add_argument('--batch_count', type=int, default='30', help='Number of batches to test models over')
+  parser.add_argument('--batch_count', type=int, default='5', help='Number of batches to test models over')
     
   parser.add_argument('--dataset', type=str, default='mnist', help='Name of dataset to load')
   parser.add_argument('--vae_type', type=str, default='vae', help='Either a standard VAE (vae) or a convolutational VAE (conv)')

@@ -40,8 +40,8 @@ def network_architecture(vae_type, latent_dim):
         'n_conv_inner': 3,                 # Convolution kernel sizes for inner layers
         'n_filters_1': 64,                 # Number of output convolution filters at layer 1
         'n_filters_2': 64,                 # Number of output convolution filters at layer 2
-        'n_filters_3': 32,                 # Number of output convolution filters at layer 3
-        'n_filters_4': 32,                 # Number of output convolution filters at layer 4
+        'n_filters_3': 64,                 # Number of output convolution filters at layer 3
+        'n_filters_4': 64,                 # Number of output convolution filters at layer 4
         'n_hidden': 128,                   # Dimensionality of hidden layer
         'n_z': latent_dim}                 # Dimensionality of latent space
   else:

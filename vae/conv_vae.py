@@ -104,28 +104,39 @@ class ConvVAE(object):
   # Generate probabilistic encoder (recognition network), which maps inputs onto a normal distribution in latent space                        
   # Encoder network turns the input samples x into two parameters in a latent space: z_mean & z_log_sigma_sq
   def __encoder(self, weights, biases):
-    x_image = tf.reshape(self.__x, [-1, IMAGE_SIZE, IMAGE_SIZE, 1])
+    with tf.name_scope('reshape'):
+      x_image = tf.reshape(self.__x, [-1, IMAGE_SIZE, IMAGE_SIZE, 1])
     
-    # The transformation is parametrized and can be learned
-    conv1_layer = self.__tran_func(tf.add(nn_utils.conv2d(x_image, weights['hconv1']), biases['bconv1']))
-    conv2_layer = self.__tran_func(tf.add(nn_utils.conv2d(conv1_layer, weights['hconv2'], stride=2), biases['bconv2']))
-    conv3_layer = self.__tran_func(tf.add(nn_utils.conv2d(conv2_layer, weights['hconv3']), biases['bconv3']))
-    conv4_layer = self.__tran_func(tf.add(nn_utils.conv2d(conv3_layer, weights['hconv4']), biases['bconv4']))
+    with tf.name_scope('conv1'):
+      conv1_layer = self.__tran_func(tf.add(nn_utils.conv2d(x_image, weights['hconv1']), biases['bconv1']))
+    
+    with tf.name_scope('conv2'):
+      conv2_layer = self.__tran_func(tf.add(nn_utils.conv2d(conv1_layer, weights['hconv2'], stride=2), biases['bconv2']))
+    
+    with tf.name_scope('conv3'):
+      conv3_layer = self.__tran_func(tf.add(nn_utils.conv2d(conv2_layer, weights['hconv3']), biases['bconv3']))
+    
+    with tf.name_scope('conv4'):
+      conv4_layer = self.__tran_func(tf.add(nn_utils.conv2d(conv3_layer, weights['hconv4']), biases['bconv4']))
   
-    # Reshape tensor from last layer into a batch of vectors
-    h_shape = conv4_layer.get_shape().as_list()
-    dim = np.prod(h_shape[1:])  
-    flat = tf.reshape(conv4_layer, [-1, dim])
+    with tf.name_scope('flatten'):
+      # Reshape tensor from last layer into a batch of vectors
+      h_shape = conv4_layer.get_shape().as_list()
+      dim = np.prod(h_shape[1:])  
+      flat = tf.reshape(conv4_layer, [-1, dim])
   
-    # Multiply by weight matrix, add bias and apply activation function
-    h_fc_layer = self.__tran_func(tf.add(tf.matmul(flat, weights['hfc']), biases['bfc']))
+    with tf.name_scope('fc1'):
+      # Multiply by weight matrix, add bias and apply activation function
+      h_fc_layer = self.__tran_func(tf.add(tf.matmul(flat, weights['hfc']), biases['bfc']))
     
-    # Function automatically handles scaling neuron outputs and masking them
-    # Basically inverted dropout, outputs scaled input by 1/keep_prob, else outputs 0    
-    h_fc_drop = tf.nn.dropout(h_fc_layer, self.__kp)
+    with tf.name_scope('dropout'):
+      # Function automatically handles scaling neuron outputs and masking them
+      # Basically inverted dropout, outputs scaled input by 1/keep_prob, else outputs 0    
+      h_fc_drop = tf.nn.dropout(h_fc_layer, self.__kp)
     
-    z_mean = tf.add(tf.matmul(h_fc_layer, weights['out_mean']), biases['out_mean'])
-    z_log_sigma_sq = tf.add(tf.matmul(h_fc_layer, weights['out_log_sigma']), biases['out_log_sigma'])
+    with tf.name_scope('fc2'):
+      z_mean = tf.add(tf.matmul(h_fc_layer, weights['out_mean']), biases['out_mean'])
+      z_log_sigma_sq = tf.add(tf.matmul(h_fc_layer, weights['out_log_sigma']), biases['out_log_sigma'])
     
     return (z_mean, z_log_sigma_sq)
 
@@ -156,20 +167,20 @@ class ConvVAE(object):
     #     induced by the decoder in the data space). This can be interpreted as the number of "nats" required
     #     to reconstruct the input when the activation in latent space is given. Adding 1e-8 to avoid evaluation of log(0.0).
     reconstr_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.__x_reconstr_logits, labels=self.__x)
-    self.__reconstr_loss = tf.reduce_sum(reconstr_loss, axis=1)
-    self.__m_reconstr_loss = tf.reduce_mean(self.__reconstr_loss)
+    reconstr_loss = tf.reduce_sum(reconstr_loss, axis=1)
+    self.__m_reconstr_loss = tf.reduce_mean(reconstr_loss)
     
     # 2.) The latent loss, which is defined as the KL divergence between the distribution in latent space induced 
     #     by the encoder on the data and some prior. Acts as a regulariser and can be interpreted as the number of "nats" 
     #     required for transmitting the latent space distribution given the prior.
     latent_loss = 1 + self.__z_log_sigma_sq - tf.square(self.__z_mean) - tf.exp(self.__z_log_sigma_sq)
-    self.__latent_loss = -0.5 * tf.reduce_sum(latent_loss, axis=1)     
-    self.__m_latent_loss = tf.reduce_mean(self.__latent_loss)
+    latent_loss = -0.5 * tf.reduce_sum(latent_loss, axis=1)     
+    self.__m_latent_loss = tf.reduce_mean(latent_loss)
     
     if self.__train_multiple:    
-        self.__cost = tf.where(self.__discr, self.__latent_loss, (1./self.__latent_loss))
+        self.__cost = tf.where(self.__discr, latent_loss, (1./latent_loss))
     else:
-        self.__cost = tf.add(self.__reconstr_loss, self.__latent_loss)
+        self.__cost = tf.add(reconstr_loss, latent_loss)
     
     # Average over batch
     self.__batch_cost = tf.reduce_mean(self.__cost)
@@ -193,10 +204,6 @@ class ConvVAE(object):
                                                    feed_dict={self.__x: X, self.__discr: discr, self.__kp: keep_prob})
     
     return cost, recon_loss, latent_loss
-    
-  # Return KL Divergence loss across batch sammples
-  def get_latent_loss(self, sess, X, keep_prob=1.0):                  
-    return sess.run((self.__latent_loss), feed_dict={self.__x: X, self.__kp: keep_prob})
     
   # Transform data by mapping it into the latent space
   # Note: This maps to mean of distribution, alternatively could sample from Gaussian distribution

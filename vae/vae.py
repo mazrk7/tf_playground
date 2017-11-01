@@ -116,10 +116,10 @@ class VAE(object):
     '''
     # Prone to numerical instability
     # reconstr_loss = self.__x * tf.log(1e-10 + self.__x_reconstr_mean) + (1 - self.__x) * tf.log(1e-10 + 1 - self.__x_reconstr_mean)
-    # self.__reconstr_loss = -tf.reduce_sum(reconstr_loss, 1)    
+    # reconstr_loss = -tf.reduce_sum(reconstr_loss, 1)    
     reconstr_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.__x_reconstr_logits, labels=self.__x)
-    self.__reconstr_loss = tf.reduce_sum(reconstr_loss, axis=1)
-    self.__m_reconstr_loss = tf.reduce_mean(self.__reconstr_loss)
+    reconstr_loss = tf.reduce_sum(reconstr_loss, axis=1)
+    self.__m_reconstr_loss = tf.reduce_mean(reconstr_loss)
     
     ''' 2.) The latent loss, which is defined as the KL divergence between the distribution in latent space induced 
             by the encoder on the data and some prior. Acts as a regulariser and can be interpreted as the number of "nats" 
@@ -132,13 +132,13 @@ class VAE(object):
                     # - tf.square(tf.clip_by_value(self.__z_mean, -10., 10.)) \
                     # - tf.exp(tf.clip_by_value(self.__z_log_sigma_sq, -10., 10.))                      
     latent_loss = 1 + self.__z_log_sigma_sq - tf.square(self.__z_mean) - tf.exp(self.__z_log_sigma_sq)
-    self.__latent_loss = -0.5 * tf.reduce_sum(latent_loss, axis=1)     
-    self.__m_latent_loss = tf.reduce_mean(self.__latent_loss)
+    latent_loss = -0.5 * tf.reduce_sum(latent_loss, axis=1)    
+    self.__m_latent_loss = tf.reduce_mean(latent_loss)
     
     if self.__train_multiple:    
-        self.__cost = tf.where(self.__discr, self.__latent_loss, (1./self.__latent_loss))
+        self.__cost = tf.where(self.__discr, latent_loss, (1./latent_loss))
     else:
-        self.__cost = tf.add(self.__reconstr_loss, self.__latent_loss)
+        self.__cost = tf.add(reconstr_loss, latent_loss)
     
     # Average over batch
     self.__batch_cost = tf.reduce_mean(self.__cost)
@@ -162,10 +162,6 @@ class VAE(object):
                                                    feed_dict={self.__x: X, self.__discr: discr})
     
     return cost, recon_loss, latent_loss
-  
-  # Return KL Divergence loss across batch sammples
-  def get_latent_loss(self, sess, X):                
-    return sess.run((self.__latent_loss), feed_dict={self.__x: X})
     
   # Transform data by mapping it into the latent space
   # Note: This maps to mean of distribution, alternatively could sample from Gaussian distribution
