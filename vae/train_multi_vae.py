@@ -36,13 +36,13 @@ def network_architecture(vae_type, latent_dim):
   if vae_type == 'conv':
     network_architecture = \
        {'n_input': 1,                      # Number of input channels
-        'n_conv_outer': 2,                 # Convolution kernel sizes for outer layers
-        'n_conv_inner': 3,                 # Convolution kernel sizes for inner layers
+        'kernel_outer': 5,                 # Convolution kernel sizes for outer layers
+        'kernel_inner': 3,                 # Convolution kernel sizes for inner layers
         'n_filters_1': 64,                 # Number of output convolution filters at layer 1
         'n_filters_2': 64,                 # Number of output convolution filters at layer 2
         'n_filters_3': 64,                 # Number of output convolution filters at layer 3
         'n_filters_4': 64,                 # Number of output convolution filters at layer 4
-        'n_hidden': 128,                   # Dimensionality of hidden layer
+        'n_hidden': 500,                   # Dimensionality of intermediate layer
         'n_z': latent_dim}                 # Dimensionality of latent space
   else:
     network_architecture = \
@@ -65,7 +65,12 @@ def main(_):
   else:
     raise ValueError("Autoencoder type should be either conv or vae. Received: {}.".format(FLAGS.vae_type))
     
-  with tf.Session() as sess:
+  # Wish to allocate approximately gpu_memory_frac% of GPU memory
+  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_memory_frac)
+  
+  with tf.device('/gpu:%d' % FLAGS.gpu_device):
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=FLAGS.log_device_placement, gpu_options=gpu_options))
+    
     np.random.seed(FLAGS.seed)
     tf.set_random_seed(FLAGS.seed)
         
@@ -113,10 +118,10 @@ def main(_):
         print("Epoch: %04d / %04d, Cost= %04f, Recon= %04f, Latent= %04f" % \
 			(epoch, FLAGS.n_epochs, avg_cost, avg_recon, avg_latent))
   
-    # Create a saver object that will store all the parameter variables
-    saver = tf.train.Saver()
-    saver.save(sess, model_path)
-    print("Model saved as: %s" % model_path)
+  # Create a saver object that will store all the parameter variables
+  saver = tf.train.Saver()
+  saver.save(sess, model_path)
+  print("Model saved as: %s" % model_path)
     
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -132,10 +137,11 @@ if __name__ == '__main__':
   parser.add_argument('--n_epochs', type=int, default='50', help='Number of training epochs')
   parser.add_argument('--latent_dim', type=int, default='2', help='Latent dimensionality of the VAE')
   
-  # Convolutional VAE specific
-  parser.add_argument('--keep_prob', type=float, default='.5', help='Sets the dropout rate')
+  parser.add_argument('--keep_prob', type=float, default='1.0', help='Sets the dropout rate')
   
-  parser.add_argument('--gpu_device', type=int, default=0, help='Specifying which gpu device to use')
+  parser.add_argument('--gpu_device', type=int, default=0, help='Specifying which GPU device to use')
+  parser.add_argument('--log_device_placement', type=bool, default=False, help='Logs the devices that operations and tensors are assigned to')
+  parser.add_argument('--gpu_memory_frac', type=float, default=0.8, help='Specifying what fraction of your GPU memory to occupy')
   parser.add_argument('--display_step', type=int, default='5', help='Display step during training')
       
   FLAGS, unparsed = parser.parse_known_args()

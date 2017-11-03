@@ -126,32 +126,29 @@ class VAE(object):
             required for transmitting the latent space distribution given the prior.
             Fitting the variational objective is equivalent to optimising a lower bound on the log marginal likelihood,
             given that we know KL-divergence is non-negative --> Termed "ELBO" or "Evidence Lower Bound"
-    '''      
-    # Clip values of KL divergence to prevent NANs
-    # latent_loss = 1 + tf.clip_by_value(self.__z_log_sigma_sq, -10., 10.) \
-                    # - tf.square(tf.clip_by_value(self.__z_mean, -10., 10.)) \
-                    # - tf.exp(tf.clip_by_value(self.__z_log_sigma_sq, -10., 10.))                      
+    '''                          
     latent_loss = 1 + self.__z_log_sigma_sq - tf.square(self.__z_mean) - tf.exp(self.__z_log_sigma_sq)
-    latent_loss = -0.5 * tf.reduce_sum(latent_loss, axis=1)    
+    latent_loss = -0.5 * tf.reduce_sum(latent_loss, axis=1)
     self.__m_latent_loss = tf.reduce_mean(latent_loss)
     
     if self.__train_multiple:    
-        self.__cost = tf.where(self.__discr, latent_loss, (1./latent_loss))
+        self.__cost = tf.where(self.__discr, latent_loss, tf.reciprocal(latent_loss))
     else:
         self.__cost = tf.add(reconstr_loss, latent_loss)
     
     # Average over batch
     self.__batch_cost = tf.reduce_mean(self.__cost)
-        
+    
   def __create_loss_optimiser(self):
-    optimiser = tf.train.AdamOptimizer(learning_rate=self.__lr) 
+    self.__train_op = tf.train.AdamOptimizer(learning_rate=self.__lr).minimize(self.__batch_cost)
     
     # Extract trainable variables and gradients   
-    grads, tvars = zip(*optimiser.compute_gradients(self.__batch_cost))
+    # grads, tvars = zip(*optimiser.compute_gradients(self.__batch_cost))
     
     # Use gradient clipping to avoid 'exploding' gradients
-    # clipped, _ = tf.clip_by_global_norm(grads, 1.)
-    self.__train_op = optimiser.apply_gradients(zip(grads, tvars))
+    # grads, _ = tf.clip_by_global_norm(grads, 1.)
+
+    # self.__train_op = optimiser.apply_gradients(zip(grads, tvars))
 
   # Train model on mini-batch of input data & return the cost
   def partial_fit(self, sess, X, discr=None):

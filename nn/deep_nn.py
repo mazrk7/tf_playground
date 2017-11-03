@@ -81,7 +81,7 @@ def deepnn(x):
 
   # Fully connected layer 1 -- after 2 rounds of downsampling, our 28x28 image
   # is down to 7x7x64 feature maps -- maps this to 1024 features for processing on entire image
-  W_fc1 = nn_utils.weight_variable([7 * 7 * 64, 1024])
+  W_fc1 = nn_utils.weight_variable([7*7*64, 1024])
   b_fc1 = nn_utils.bias_variable([1024])
 
   # Reshape tensor from pooling layer into a batch of vectors
@@ -146,11 +146,11 @@ def main(_):
       # Logging every 100th iteration
       if i % 100 == 0:
         train_accuracy = accuracy.eval(feed_dict={x: batch[0], y_: batch[1], keep_prob: 1.0})
-        print('step %d, training accuracy %g' % (i, train_accuracy))
+        print("step %d, training accuracy %g" % (i, train_accuracy))
       train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: FLAGS.keep_prob})
 
   ######################################### TESTING #########################################
-    print('test accuracy %g' % accuracy.eval(feed_dict={
+    print("test accuracy %g" % accuracy.eval(feed_dict={
         x: data.test.images, y_: data.test.labels, keep_prob: 1.0}))
 
 if __name__ == '__main__':

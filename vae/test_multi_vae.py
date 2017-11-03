@@ -79,7 +79,7 @@ def main(_):
       # Initialise a cost array for each model's reconstruction of a sample
       cost_array = np.zeros((FLAGS.batch_size, NUM_CLASSES), dtype=np.float32)
       for index in range(NUM_CLASSES):
-        model_path = 'models/digit_model_' + str(index)
+        model_path = 'models/' + FLAGS.name + '_' + str(index)
             
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
@@ -98,12 +98,9 @@ def main(_):
       accuracy = tf.reduce_mean(tf.cast(correct_estimation, tf.float32))
       print("Batch %d accuracy: %g" % (i, sess.run(accuracy)))
         
-    mean_accuracy = tf.reduce_mean(accuracy)
-    print("Test accuracy of multiple-selection VAE models: %g" % sess.run(mean_accuracy))
-        
     ##### DEBUGGING ROUTINES ####
     for index in range(NUM_CLASSES):
-      model_path = 'models/digit_model_' + str(index)
+      model_path = 'models/' + FLAGS.name + '_' + str(index)
             
       saver = tf.train.Saver()
       saver.restore(sess, model_path) 
@@ -115,6 +112,7 @@ def main(_):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
     
+  parser.add_argument('--name', type=str, default='digit_model', help='Name of model to train')
   parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
   parser.add_argument('--batch_count', type=int, default='5', help='Number of batches to test models over')
     
