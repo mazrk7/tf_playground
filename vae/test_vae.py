@@ -21,7 +21,7 @@ IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
 # Train a VAE with 2d latent space and illustrate how the encoder (the recognition network) 
 # encodes some of the labeled inputs (collapsing the Gaussian distribution in latent space to its mean)
-def visualise_latent_space(sess, model, test_data, batch_size=2000):
+def visualise_latent_space(sess, model, test_data, batch_size=5000):
   x_sample, y_sample = test_data.next_batch(batch_size)
   z_mu = model.transform(sess, x_sample)
 
@@ -90,8 +90,9 @@ def main(_):
     plt.tight_layout()
     plt.show()
 
+    visualise_latent_space(sess, vae, data.test)
+    
     if FLAGS.latent_dim == 2:
-      visualise_latent_space(sess, vae, data.test)
       plot_reconstructions(sess, vae, FLAGS.batch_size)
     
 if __name__ == '__main__':

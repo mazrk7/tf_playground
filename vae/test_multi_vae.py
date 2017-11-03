@@ -72,6 +72,9 @@ def main(_):
     np.random.seed(FLAGS.seed)
     tf.set_random_seed(FLAGS.seed)
    
+    # Mean accuracy of classification across all 'batch_count' batches
+    mean_acc = np.zeros((FLAGS.batch_count, 1), dtype=np.float32)
+    
     # Loop over `batch_count` batches
     for i in range(FLAGS.batch_count):
       batch_xs, batch_ys = data.test.next_batch(FLAGS.batch_size)
@@ -96,7 +99,12 @@ def main(_):
         
       correct_estimation = tf.equal(correct_indices, min_cost_indices)
       accuracy = tf.reduce_mean(tf.cast(correct_estimation, tf.float32))
-      print("Batch %d accuracy: %g" % (i, sess.run(accuracy)))
+      acc = sess.run(accuracy)
+      print("Batch %d accuracy: %g" % (i, acc))
+      
+      mean_acc[i, 0] = acc
+    
+    print("Mean classification accuracy: %.3f" % np.mean(mean_acc))
         
     ##### DEBUGGING ROUTINES ####
     for index in range(NUM_CLASSES):
@@ -106,8 +114,8 @@ def main(_):
       saver.restore(sess, model_path) 
         
       plot_single_model(sess, vae, data.test, FLAGS.batch_size)
-      if FLAGS.latent_dim == 2:
-        visualise_latent_space(sess, vae, data.test)
+      #if FLAGS.latent_dim == 2:
+      visualise_latent_space(sess, vae, data.test)
         
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
