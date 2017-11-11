@@ -106,7 +106,7 @@ def main(_):
     
     print("Mean classification accuracy: %.3f" % np.mean(mean_acc))
         
-    ##### DEBUGGING ROUTINES ####
+    ##### PLOTTING ROUTINES ####
     for index in range(NUM_CLASSES):
       model_path = 'models/' + FLAGS.name + '_' + str(index)
             
@@ -114,7 +114,6 @@ def main(_):
       saver.restore(sess, model_path) 
         
       plot_single_model(sess, vae, data.test, FLAGS.batch_size)
-      #if FLAGS.latent_dim == 2:
       visualise_latent_space(sess, vae, data.test)
         
 if __name__ == '__main__':
@@ -122,7 +121,7 @@ if __name__ == '__main__':
     
   parser.add_argument('--name', type=str, default='digit_model', help='Name of model to train')
   parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
-  parser.add_argument('--batch_count', type=int, default='5', help='Number of batches to test models over')
+  parser.add_argument('--batch_count', type=int, default='10', help='Number of batches to test models over')
     
   parser.add_argument('--dataset', type=str, default='mnist', help='Name of dataset to load')
   parser.add_argument('--vae_type', type=str, default='vae', help='Either a standard VAE (vae) or a convolutational VAE (conv)')

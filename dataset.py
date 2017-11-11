@@ -141,13 +141,12 @@ def read_workload(data_dir,
 
   # Import Matlab matrix variables, which consist of data & labels for the eye experiment
   dataset = scipy.io.loadmat(os.path.join(data_dir, config.WORKLOAD_DATA))
-  labels = scipy.io.loadmat(os.path.join(data_dir, config.WORKLOAD_LABELS))
 
   train_data = dataset['train_data']
   test_data = dataset['test_data']
 
-  train_labels = labels['train_labels']
-  test_labels = labels['test_labels']
+  train_labels = dataset['train_labels']
+  test_labels = dataset['test_labels']
     
   if one_hot:
     train_labels = dense_to_one_hot(train_labels, num_classes=2)
@@ -167,7 +166,7 @@ def read_workload(data_dir,
   validation = DataSet(validation_data, validation_labels, **options)
   test = DataSet(test_data, test_labels, **options)
 
-  return base.Datasets(train=train, validation=validation, test=test)
+  return base.Datasets(train=train, validation=validation, test=test), dataset['window'], dataset['num_sources']
   
 def dense_to_one_hot(labels_dense, num_classes):
   """Convert class labels from scalars to one-hot vectors."""
