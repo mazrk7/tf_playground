@@ -5,11 +5,14 @@ from __future__ import division
 from __future__ import print_function
 
 import scipy.io
-import numpy
+import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 import os
 import config
+
+from scipy import stats
 
 from tensorflow.contrib.learn.python.learn.datasets import base
 from tensorflow.python.framework import dtypes
@@ -31,7 +34,7 @@ class DataSet(object):
     
     seed1, seed2 = random_seed.get_seed(seed)
     # If op level seed is not set, use whatever graph level seed is returned
-    numpy.random.seed(seed1 if seed is None else seed2)
+    np.random.seed(seed1 if seed is None else seed2)
     
     dtype = dtypes.as_dtype(dtype).base_dtype
     if dtype not in (dtypes.uint8, dtypes.float32):
@@ -67,8 +70,8 @@ class DataSet(object):
     
     # Shuffle for the first epoch
     if self._epochs_completed == 0 and start == 0 and shuffle:
-      perm0 = numpy.arange(self._num_examples)
-      numpy.random.shuffle(perm0)
+      perm0 = np.arange(self._num_examples)
+      np.random.shuffle(perm0)
       self._features = self.features[perm0]
       self._labels = self.labels[perm0]
       
@@ -83,8 +86,8 @@ class DataSet(object):
       
       # Shuffle the data
       if shuffle:
-        perm = numpy.arange(self._num_examples)
-        numpy.random.shuffle(perm)
+        perm = np.arange(self._num_examples)
+        np.random.shuffle(perm)
         self._features = self.features[perm]
         self._labels = self.labels[perm]
         
@@ -94,7 +97,7 @@ class DataSet(object):
       end = self._index_in_epoch
       features_new_part = self._features[start:end]
       labels_new_part = self._labels[start:end]
-      return numpy.concatenate((features_rest_part, features_new_part), axis=0) , numpy.concatenate((labels_rest_part, labels_new_part), axis=0)
+      return np.concatenate((features_rest_part, features_new_part), axis=0) , np.concatenate((labels_rest_part, labels_new_part), axis=0)
     else:
       self._index_in_epoch += batch_size
       end = self._index_in_epoch
@@ -112,6 +115,7 @@ def load_data(dataset, one_hot=False, validation_size=5000):
     raise ValueError("Invalid dataset %s" % dataset)
   
   global_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), config.GLOBAL_DATA_DIR)
+  
   return reader(os.path.join(global_dir, data_dir), one_hot=one_hot, validation_size=validation_size)
 
 def read_mnist(data_dir,
@@ -128,53 +132,63 @@ def read_mnist(data_dir,
   options = dict(one_hot=one_hot, dtype=dtype, reshape=reshape, validation_size=validation_size)
     
   return input_data.read_data_sets(data_dir, **options)
-
+  
 def read_workload(data_dir,
-                  one_hot=False,
-                  dtype=dtypes.float32,
-                  validation_size=10,
-                  seed=None):
-  """Loads and reads the ARTA experiment data for cognitive load into a base.Datasets collection of DataSet."""
+             one_hot=False,
+             dtype=dtypes.float32,
+             validation_size=10,
+             seed=None):
+  """Loads and reads the raw ARTA experiment data for cognitive load into a base.Datasets collection of DataSet."""
   
   if not os.path.exists(data_dir):
     os.makedirs(data_dir)
 
   # Import Matlab matrix variables, which consist of data & labels for the eye experiment
   dataset = scipy.io.loadmat(os.path.join(data_dir, config.WORKLOAD_DATA))
-
-  train_data = dataset['train_data']
-  test_data = dataset['test_data']
-
-  train_labels = dataset['train_labels']
-  test_labels = dataset['test_labels']
-    
+  num_sources = dataset['num_sources'].item(0)  
+  window = dataset['window'].item(0)  
+  
+  segments, labels = segment_signal(dataset, window, num_sources)
+  
   if one_hot:
-    train_labels = dense_to_one_hot(train_labels, num_classes=2)
-    test_labels = dense_to_one_hot(test_labels, num_classes=2)
+    labels = np.asarray(pd.get_dummies(labels), dtype = np.int8)
     
+  reshaped_segments = segments.reshape(len(segments), 1, window, num_sources)
+  train_test_split = np.random.rand(len(reshaped_segments)) < 0.70
+  
+  train_data = reshaped_segments[train_test_split]
+  train_labels = labels[train_test_split]
+
   if not 0 <= validation_size <= len(train_data):
     raise ValueError("Validation size should be between 0 and {}. Received: {}.".format(len(train_data), validation_size))
     
   validation_data = train_data[:validation_size]
   validation_labels = train_labels[:validation_size]
-  train_data = train_data[validation_size:]
-  train_labels = train_labels[validation_size:]
+  
+  test_data = reshaped_segments[~train_test_split]
+  test_labels = labels[~train_test_split]
 
   options = dict(dtype=dtype, seed=seed)
   
   train = DataSet(train_data, train_labels, **options)
   validation = DataSet(validation_data, validation_labels, **options)
   test = DataSet(test_data, test_labels, **options)
+    
+  return base.Datasets(train=train, validation=validation, test=test), window, num_sources
 
-  return base.Datasets(train=train, validation=validation, test=test), dataset['window'], dataset['num_sources']
-  
-def dense_to_one_hot(labels_dense, num_classes):
-  """Convert class labels from scalars to one-hot vectors."""
-  
-  num_labels = labels_dense.shape[0]
-  index_offset = numpy.arange(num_labels) * num_classes
+def windows(data, win):
+    start = 0
+    while start < data.size:
+        yield int(start), int(start + win)
+        start += (win / 2)
 
-  labels_one_hot = numpy.zeros((num_labels, num_classes))
-  labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
+def segment_signal(data, window_size=400, num_sources=6):
+    segments = np.empty((0, window_size, num_sources))
+    labels = np.empty((0))
+    
+    for (start, end) in windows(data['timestamps'], window_size):     
+        if(len(data['timestamps'][start:end]) == window_size):
+            segments = np.vstack([segments, [data['raw'][start:end]]])
+            labels = np.append(labels, stats.mode(data['labels'][start:end])[0][0])
 
-  return labels_one_hot
+    return segments, labels

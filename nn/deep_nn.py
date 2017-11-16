@@ -68,7 +68,7 @@ def deepnn(x):
   h_conv1 = tf.nn.relu(nn_utils.conv2d(x_image, W_conv1) + b_conv1)
 
   # Max pooling layer - downsamples by 2X i.e. reduces image size to 14x14
-  h_pool1 = nn_utils.max_pool_2x2(h_conv1)
+  h_pool1 = nn_utils.max_pool(h_conv1)
 
   # Second convolutional layer -- maps 32 feature maps to 64 i.e. 64 features for each 5x5 patch
   W_conv2 = nn_utils.weight_variable([5, 5, 32, 64])
@@ -77,7 +77,7 @@ def deepnn(x):
   h_conv2 = tf.nn.relu(nn_utils.conv2d(h_pool1, W_conv2) + b_conv2)
 
   # Second pooling layer - image size reduced to 7x7
-  h_pool2 = nn_utils.max_pool_2x2(h_conv2)
+  h_pool2 = nn_utils.max_pool(h_conv2)
 
   # Fully connected layer 1 -- after 2 rounds of downsampling, our 28x28 image
   # is down to 7x7x64 feature maps -- maps this to 1024 features for processing on entire image

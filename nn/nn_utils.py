@@ -7,7 +7,11 @@ import tensorflow as tf
 def conv2d(x, W, stride=1, pad='SAME'):
   """conv2d returns a 2d convolution layer."""
   return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding=pad)
-    
+
+def depthwise_conv2d(x, W, stride=1, pad='SAME'):
+  """depthwise_conv2d returns a 2d convolution layer that filters each channel independently."""
+  return tf.nn.depthwise_conv2d(x, W, [1, stride, stride, 1], padding=pad)
+        
 def conv2d_transpose(x, W, output_channels, stride=1, filter_size=3, pad='SAME'):
   """conv2d_transpose returns a 2d deconvolution layer."""
   input_shape = x.get_shape().as_list()
@@ -32,19 +36,19 @@ def conv2d_transpose(x, W, output_channels, stride=1, filter_size=3, pad='SAME')
 # NOTE: Discarding pooling layers (used to reduce dimension of representation) is
 # increasingly more common, especially in generative models e.g. VAEs 
 # --> Pooling likely to be abandoned at some point altogether
-def max_pool_2x2(x, stride=2, filter_size=2, pad='SAME'):
-  """max_pool_2x2 downsamples a feature map by 2X."""
-  return tf.nn.max_pool(x, ksize=[1, filter_size, filter_size, 1], strides=[1, stride, stride, 1], padding=pad)
+def max_pool(x, stride=[2,2], filter_size=[2,2], pad='SAME'):
+  """max_pool downsamples a feature map using max pooling."""
+  return tf.nn.max_pool(x, ksize=[1, filter_size[0], filter_size[1], 1], strides=[1, stride[0], stride[1], 1], padding=pad)
   
-def weight_variable(shape):
+def weight_variable(shape, name=None, trainable=True):
   """weight_variable generates a weight variable of a given shape."""
   initial = tf.truncated_normal(shape, stddev=0.1)
   
-  return tf.Variable(initial)
+  return tf.Variable(initial, name=name, trainable=trainable)
 
 # ReLU neurons should be initialised with a slightly positive initial bias to avoid "dead neurons"
-def bias_variable(shape):
+def bias_variable(shape, name=None, trainable=True):
   """bias_variable generates a bias variable of a given shape."""
   initial = tf.constant(0.1, shape=shape)
   
-  return tf.Variable(initial)
+  return tf.Variable(initial, name=name, trainable=trainable)
