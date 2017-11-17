@@ -9,7 +9,7 @@ from nn import nn_utils
 # Training Parameters
 learning_rate = 0.001
 num_epochs = 1000
-batch_size = 128
+batch_size = 20
 
 # Read workload dataset, sequence length and input dimensionality from the workload Matlab matrix
 data, seq_length, num_channels = load_data('workload', one_hot=True, validation_size=10)
@@ -18,17 +18,17 @@ data, seq_length, num_channels = load_data('workload', one_hot=True, validation_
 model_path = 'models/cnn_workload_features'
         
 # RNN Parameters
-num_hidden = 600                        # Number of hidden units for the fully connected layer
+num_hidden = 800                       # Number of hidden units for the fully connected layer
 num_classes = 2                         # Total number of classes --> Divided into binary classifier of beneficial or detrimental cognitive load
 num_layers = 3                          # Number of stacked LSTM cells
 
 # CNN Parameters
-kernel_size_1 = 40                          # First convolutional layer's filter size
-depth_1 = 40                                # First convolutional layer's number of output channels i.e. depth
-pool_kernel = 20                            # Kernel size of max pooling layer
-kernel_size_2 = 4                           # Second convolutional layer's filter size
-depth_2 = 4                                 # Second convolutional layer's number of output channels i.e. depth
-downsample_dim = 91                         # Downsample dimensions after max pooling
+kernel_size_1 = 20                      # First convolutional layer's filter size
+depth_1 = 20                            # First convolutional layer's number of output channels i.e. depth
+pool_kernel = 20                        # Kernel size of max pooling layer
+kernel_size_2 = 2                       # Second convolutional layer's filter size
+depth_2 = 2                             # Second convolutional layer's number of output channels i.e. depth
+downsample_dim = 191                    # Downsample dimensions after max pooling
 
 # tf Graph input
 X = tf.placeholder(tf.float32, shape=[None, 1, seq_length, num_channels])
@@ -37,14 +37,14 @@ keep_prob = tf.placeholder(tf.float32)
 
 
 weights = {
-    'depth_conv1': nn_utils.weight_variable([1, kernel_size_1, num_channels, depth_1], trainable=False),
+    'depth_conv1': nn_utils.weight_variable([1, kernel_size_1, num_channels, depth_1], trainable=True),
     'depth_conv2': nn_utils.weight_variable([1, kernel_size_2, depth_1*num_channels, depth_2], trainable=True),
     'dense': tf.Variable(tf.random_normal([downsample_dim*depth_1*depth_2*num_channels, num_hidden])),
     'out': tf.Variable(tf.random_normal([num_hidden, num_classes]))
 }
 biases = {
-    'depth_conv1': nn_utils.bias_variable([depth_1*num_channels], trainable=False),
-    'depth_conv2': nn_utils.bias_variable([depth_1*depth_2*num_channels], trainable=False),
+    'depth_conv1': nn_utils.bias_variable([depth_1*num_channels], trainable=True),
+    'depth_conv2': nn_utils.bias_variable([depth_1*depth_2*num_channels], trainable=True),
     'dense': tf.Variable(tf.random_normal([num_hidden])),
     'out': tf.Variable(tf.random_normal([num_classes]))
 }

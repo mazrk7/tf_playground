@@ -154,19 +154,25 @@ def read_workload(data_dir,
     labels = np.asarray(pd.get_dummies(labels), dtype = np.int8)
     
   reshaped_segments = segments.reshape(len(segments), 1, window, num_sources)
-  train_test_split = np.random.rand(len(reshaped_segments)) < 0.70
   
-  train_data = reshaped_segments[train_test_split]
-  train_labels = labels[train_test_split]
-
+  # Don't randomise the train-test set indices, instead rely on different users to provide testing data
+  # train_test_split = np.random.rand(len(reshaped_segments)) < 0.70
+  train_test_split = int(.7 * len(reshaped_segments)) + 1
+  
+  # train_data = reshaped_segments[train_test_split]
+  # train_labels = labels[train_test_split]
+  
+  train_data, test_data = np.split(reshaped_segments, [train_test_split])
+  train_labels, test_labels = np.split(labels, [train_test_split])
+  
   if not 0 <= validation_size <= len(train_data):
     raise ValueError("Validation size should be between 0 and {}. Received: {}.".format(len(train_data), validation_size))
     
   validation_data = train_data[:validation_size]
   validation_labels = train_labels[:validation_size]
   
-  test_data = reshaped_segments[~train_test_split]
-  test_labels = labels[~train_test_split]
+  # test_data = reshaped_segments[~train_test_split]
+  # test_labels = labels[~train_test_split]
 
   options = dict(dtype=dtype, seed=seed)
   

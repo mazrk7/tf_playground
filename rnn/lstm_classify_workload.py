@@ -6,17 +6,23 @@ import numpy as np
 from dataset import load_data
 
 # Training Parameters
-learning_rate = 0.001
-num_epochs = 120
-batch_size = 128
+learning_rate = 0.0025
+num_epochs = 100
+batch_size = 80
 
 # Read workload dataset, sequence length (# of timesteps) and input dimensionality from the workload Matlab matrix
 data, seq_length, num_features = load_data('workload', one_hot=True, validation_size=10)
 
+print("# of training series: ", data.train.num_examples)
+print("# of testing series: ", data.test.num_examples)
+print(np.mean(data.test.features), np.std(data.test.features))
+print("# of input sources: ", num_features)
+print("# of timesteps: ", seq_length)
+
 # RNN Parameters
 num_hidden = 100                        # Number of hidden units for the fully connected layer
 num_classes = 2                         # Total number of classes --> Divided into binary classifier of beneficial or detrimental cognitive load
-num_layers = 3                          # Number of stacked LSTM cells
+num_layers = 2                          # Number of stacked LSTM cells
 
 # tf Graph input
 X = tf.placeholder(tf.float32, [None, seq_length, num_features])
@@ -34,19 +40,24 @@ biases = {
 }
 
 def RNN(x, weights, biases, keep_prob):
-    #x = tf.unstack(x, seq_length, 1)
-    x = tf.transpose(x, [1, 0, 2])
-    x = tf.reshape(x, [-1, num_features])
+    # Function returns an RNN from given parameters
+    # Two LSTM cells are stacked which adds deepness
+
+    # Input shape: (batch_size, seq_length, num_features)
+    x = tf.transpose(x, [1, 0, 2]) 
+    # Reshape to prepare input to hidden activation
+    x = tf.reshape(x, [-1, num_features]) 
+    # New shape: (seq_length*batch_size, num_features)
     
     dense = tf.nn.relu(tf.add(tf.matmul(x, weights['dense']), biases['dense']))
     # Splits the tensor into a list of sequence length
     dense = tf.split(dense, seq_length, 0)
     
-    cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.GRUCell(num_hidden, activation=tf.nn.relu), input_keep_prob=keep_prob)
-    multi_layer_cell = tf.contrib.rnn.MultiRNNCell([cell] * num_layers)
+    cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.GRUCell(num_hidden), input_keep_prob=keep_prob)
+    multi_layer_cell = tf.contrib.rnn.MultiRNNCell([cell for _ in range(num_layers)])
     
     # Get RNN cell output
-    outputs, final_state = tf.contrib.rnn.static_rnn(multi_layer_cell, dense, dtype=tf.float32)
+    outputs, last_states = tf.contrib.rnn.static_rnn(multi_layer_cell, dense, dtype=tf.float32)
     
     # Linear activation, using output for the last time step of RNN
     return tf.add(tf.matmul(outputs[-1], weights['out']), biases['out'])
@@ -63,7 +74,7 @@ loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, 
 # Define optimiser and perform gradient clipping to avoid exploding gradients
 tvars = tf.trainable_variables()
 gradients = tf.gradients(loss_op, tvars)
-clipped_grads, _ = tf.clip_by_global_norm(gradients, 1)
+clipped_grads, _ = tf.clip_by_global_norm(gradients, 5)
 
 optimiser = tf.train.AdamOptimizer(learning_rate)
 train_op = optimiser.apply_gradients(zip(gradients, tvars))
@@ -75,13 +86,17 @@ accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 # Confusion matrix
 conf_mat = tf.confusion_matrix(labels=tf.argmax(Y, 1), predictions=tf.argmax(prediction, 1), num_classes=num_classes)
 
+# Wish to allocate approximately 80% of GPU memory
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=.8)
+
 # Initialize the variables (i.e. assign their default value)
 init = tf.global_variables_initializer()
 
 # -----------------------------------------------
 # Training the model
 # -----------------------------------------------
-with tf.Session() as sess:
+with tf.device('/gpu:0'):
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=False, gpu_options=gpu_options))
     # Run the initializer
     sess.run(init)
     
@@ -104,13 +119,13 @@ with tf.Session() as sess:
         # Calculate batch loss and accuracy for both training and test sets
         loss_train, acc_train = sess.run([loss_op, accuracy], 
                                 feed_dict={X: data.train.features.reshape((-1, seq_length, num_features)), Y: data.train.labels, keep_prob: 1.0})
-        print("Epoch " + str(epoch) + ", Minibatch Loss= " + \
+        print("Epoch " + str(epoch) + ", Batch Loss= " + \
               "{:.4f}".format(loss_train) + ", Training Accuracy= " + \
               "{:.3f}".format(acc_train))
               
         loss_test, acc_test, confy = sess.run([loss_op, accuracy, conf_mat], 
                                 feed_dict={X: data.test.features.reshape((-1, seq_length, num_features)), Y: data.test.labels, keep_prob: 1.0})
-        print("--> Minibatch Loss= " + \
+        print("--> Batch Loss= " + \
               "{:.4f}".format(loss_test) + ", Testing Accuracy= " + \
               "{:.3f}".format(acc_test))
         print("Conf Mat= ", confy)
