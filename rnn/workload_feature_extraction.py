@@ -24,19 +24,19 @@ print("# of timesteps: ", window)
 model_path = 'models/cnn_workload_features'
   
 # CNN Parameters
-kernel_size_1 = 60                          # First convolutional layer's filter size
-depth_1 = 60                                # First convolutional layer's number of output channels i.e. depth
+kernel_size_1 = 40                          # First convolutional layer's filter size
+depth_1 = 40                                # First convolutional layer's number of output channels i.e. depth
 pool_kernel = 20                            # Kernel size of max pooling layer
-kernel_size_2 = 6                           # Second convolutional layer's filter size
-depth_2 = 6                                 # Second convolutional layer's number of output channels i.e. depth
-num_hidden = 1000                           # Number of hidden neurons in the fully connected layer
+kernel_size_2 = 4                           # Second convolutional layer's filter size
+depth_2 = 4                                 # Second convolutional layer's number of output channels i.e. depth
+num_hidden = 500                            # Number of hidden neurons in the fully connected layer
 drop_rate = 0.5                             # Dropout rate
 
 input_height = 1                            # Dealing with 1D signals
 input_width = window                        # Window of timesteps to traverse the signals
 num_labels = 2                              # Total number of classes --> Divided into binary classifier of beneficial or detrimental cognitive load
 num_channels = num_input                    # Number of input signal channels
-downsample_dim = 191                        # Downsample dimensions after max pooling
+downsample_dim = 21                         # Downsample dimensions after max pooling
 
 X = tf.placeholder(tf.float32, shape=[None, input_height, input_width, num_channels])
 Y = tf.placeholder(tf.float32, shape=[None, num_labels])
