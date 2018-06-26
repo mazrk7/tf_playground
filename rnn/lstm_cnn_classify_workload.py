@@ -84,7 +84,7 @@ logits = RNN(X, weights, biases, keep_prob)
 prediction = tf.nn.softmax(logits)
 
 # Define loss function
-loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
+loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=Y))
 
 # Define optimiser and perform gradient clipping to avoid exploding gradients
 tvars = tf.trainable_variables()

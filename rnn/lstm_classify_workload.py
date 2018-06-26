@@ -76,7 +76,7 @@ with tf.name_scope('softmax') as scope:
     prediction = tf.nn.softmax(logits)
 
     # Define loss function
-    loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y, name='softmax'))
+    loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=Y, name='softmax'))
     tf.summary.scalar('cross_entropy', loss_op)
 
 # Define optimiser and perform gradient clipping to avoid exploding gradients

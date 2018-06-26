@@ -69,7 +69,7 @@ def main(_):
   # So here we use tf.nn.softmax_cross_entropy_with_logits on the raw
   # outputs of 'y', and then average across the batch.
   # Internally computes the softmax activation
-  cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
+  cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y))
   
   #### APPLY OPTIMISATION ####
   # In one line, compute gradients, compute parameter update steps and apply update steps to parameters

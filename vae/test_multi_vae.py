@@ -119,7 +119,7 @@ def main(_):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
     
-  parser.add_argument('--name', type=str, default='digit_model', help='Name of model to train')
+  parser.add_argument('--name', type=str, default='digit_model', help='Name of model to test')
   parser.add_argument('--seed', type=int, default='0', help='Sets the random seed for both numpy and tf')
   parser.add_argument('--batch_count', type=int, default='10', help='Number of batches to test models over')
     

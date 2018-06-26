@@ -4,21 +4,23 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+import config
+import collections
+
 import scipy.io
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-import os
-import config
-
 from scipy import stats
 
-from tensorflow.contrib.learn.python.learn.datasets import base
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import random_seed
 
 from tensorflow.examples.tutorials.mnist import input_data
+
+DataSets = collections.namedtuple('Datasets', ['train', 'validation', 'test'])
 
 class DataSet(object):
 
@@ -97,10 +99,12 @@ class DataSet(object):
       end = self._index_in_epoch
       features_new_part = self._features[start:end]
       labels_new_part = self._labels[start:end]
+
       return np.concatenate((features_rest_part, features_new_part), axis=0) , np.concatenate((labels_rest_part, labels_new_part), axis=0)
     else:
       self._index_in_epoch += batch_size
       end = self._index_in_epoch
+
       return self._features[start:end], self._labels[start:end]
 
 def load_data(dataset, one_hot=False, validation_size=5000):
@@ -124,7 +128,7 @@ def read_mnist(data_dir,
                reshape=True,
                validation_size=5000,
                seed=None):
-  """Loads and reads the MNIST training, validation and test sets into a base.Datasets collection of DataSet."""
+  """Loads and reads the MNIST training, validation and test sets into a collection of DataSet."""
   
   # Note it is very memory inefficient to use one-hot coding
   # Instead use tf.nn.sparse_softmax_cross_entropy_with_logits() to specify a vector of integers as labels
@@ -138,7 +142,7 @@ def read_workload(data_dir,
              dtype=dtypes.float32,
              validation_size=10,
              seed=None):
-  """Loads and reads the raw ARTA experiment data for cognitive load into a base.Datasets collection of DataSet."""
+  """Loads and reads the raw ARTA experiment data for cognitive load into a collection of DataSet."""
   
   if not os.path.exists(data_dir):
     os.makedirs(data_dir)
@@ -180,7 +184,7 @@ def read_workload(data_dir,
   validation = DataSet(validation_data, validation_labels, **options)
   test = DataSet(test_data, test_labels, **options)
     
-  return base.Datasets(train=train, validation=validation, test=test), window, num_sources
+  return DataSets(train=train, validation=validation, test=test), window, num_sources
 
 def windows(data, win):
     start = 0

@@ -122,7 +122,7 @@ def main(_):
   ######################################### TRAINING #########################################
  
   #### DEFINE LOSS AND OPTIMISER ####
-  cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv))
+  cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y_conv))
   
   # Replaced SGD optimiser for more sophisticated ADAM optimiser
   train_step = tf.train.AdamOptimizer(FLAGS.learn_rate).minimize(cross_entropy)
