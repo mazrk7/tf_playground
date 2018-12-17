@@ -13,7 +13,7 @@ y = tf.placeholder(tf.float32)
 # Loss function - Sum of squares
 loss = tf.reduce_sum(tf.square(linear_model - y))
 
-# Otimisation process
+# Optimisation process
 optimizer = tf.train.GradientDescentOptimizer(0.01)
 train = optimizer.minimize(loss)
 

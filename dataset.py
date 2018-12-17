@@ -142,7 +142,7 @@ def read_workload(data_dir,
              dtype=dtypes.float32,
              validation_size=10,
              seed=None):
-  """Loads and reads the raw ARTA experiment data for cognitive load into a collection of DataSet."""
+  """Loads and reads the raw experiment data for cognitive load into a collection of DataSet."""
   
   if not os.path.exists(data_dir):
     os.makedirs(data_dir)
