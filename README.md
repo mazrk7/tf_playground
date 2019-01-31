@@ -7,6 +7,7 @@ The directory layout it as follows:
 - `nn`: Deep neural networks applied to the MNIST dataset
 - `rnn`: Recurrent models applied to a real-world dataset collected from a teleoperated navigation experiment on a robotic wheelchair
 - `vae`: Variational autoencoders applied to the MNIST dataset
+- `fivo`: Adaptation of the [FIVO](https://github.com/tensorflow/models/tree/master/research/fivo) TensorFlow implementation. Mostly interested in the variational recurrent models.
 
 Many of the scripts included in this repository are adapted from the [TensorFlow tutorials](https://www.tensorflow.org/tutorials/) page and other useful online sources, notably [this blog](https://jmetzen.github.io/2015-11-27/vae.html).
 

@@ -22,6 +22,99 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 DataSets = collections.namedtuple('Datasets', ['train', 'validation', 'test'])
 
+DEFAULT_PARALLELISM = 8
+
+
+def create_dataset(
+    path,
+    split,
+    batch_size,
+    num_parallel_calls=DEFAULT_PARALLELISM,
+    shuffle=False,
+    repeat=False,):
+  """Creates the intention prediction dataset.
+
+  Args:
+    path: The path of a pickle file containing the dataset to load.
+    split: The split to use, can be train, test, or valid.
+    batch_size: The batch size. If repeat is False then it is not guaranteed
+      that the true batch size will match for all batches since batch_size
+      may not necessarily evenly divide the number of elements.
+    num_parallel_calls: The number of threads to use for parallel processing.
+    shuffle: If true, shuffles the order of the dataset.
+    repeat: If true, repeats the dataset endlessly.
+  Returns:
+    inputs: A batch of input sequences represented as a dense Tensor of shape
+      [time, batch_size, data_dimension]. The sequences in inputs are the
+      sequences in targets shifted one timestep into the future, padded with
+      zeros. This tensor is mean-centered, with the mean taken from the pickle
+      file key 'train_mean'.
+    targets: A batch of target sequences represented as a dense Tensor of
+      shape [time, batch_size, data_dimension].
+    lens: An int Tensor of shape [batch_size] representing the lengths of each
+      sequence in the batch.
+    mean: A float Tensor of shape [data_dimension] containing the mean loaded
+    from the pickle file.
+  """
+
+  # Load the data from disk.
+  with tf.gfile.Open(path, "r") as f:
+    raw_data = pickle.load(f)
+
+  mean = raw_data["train_mean"]
+  sequences = raw_data[split]
+  num_examples = len(sequences)
+  num_features = sequences[0].shape[1]
+
+  def seq_generator():
+    """A generator that yields data sequences"""
+    for sequence in sequences:
+      yield sequence, sequence.shape[0]
+
+  dataset = tf.data.Dataset.from_generator(
+      seq_generator,
+      output_types=(tf.float64, tf.int64),
+      output_shapes=([None, num_features], []))
+
+  if repeat:
+    dataset = dataset.repeat()
+  if shuffle:
+    dataset = dataset.shuffle(num_examples)
+
+  # Batch sequences together, padding them to a common length in time
+  dataset = dataset.padded_batch(
+      batch_size, padded_shapes=([None, num_features], []))
+
+  # Post-process each batch, ensuring that it is mean-centered and time-major
+  def process_seq_data(data, lengths):
+    """Creates Tensors for next step prediction and mean-centers the input"""
+    data = tf.to_float(tf.transpose(data, perm=[1, 0, 2]))
+    lengths = tf.to_int32(lengths)
+    targets = data
+
+    # Mean center the inputs
+    inputs = data - tf.constant(
+        mean, dtype=tf.float32, shape=[1, 1, mean.shape[0]])
+    # Shift the inputs one step forward in time
+    # Remove the last timestep so that targets and inputs are the same length
+    inputs = tf.pad(inputs, [[1, 0], [0, 0], [0, 0]], mode="CONSTANT")[:-1]
+    # Mask out unused timesteps
+    inputs *= tf.expand_dims(
+        tf.transpose(tf.sequence_mask(lengths, dtype=inputs.dtype)), 2)
+
+    return inputs, targets, lengths
+
+  dataset = dataset.map(
+      process_seq_data,
+      num_parallel_calls=num_parallel_calls)
+  dataset = dataset.prefetch(num_examples)
+
+  itr = dataset.make_one_shot_iterator()
+  inputs, targets, lengths = itr.get_next()
+
+  return inputs, targets, lengths, tf.constant(mean, dtype=tf.float32)
+
+
 class DataSet(object):
 
   def __init__(self,
